@@ -1,0 +1,214 @@
+# wp-monitor
+
+Monitors a set of websites for unexpected front-page tampering (defacement, injected content, etc.) and
+keeps an eye on a mailbox for WordPress plugin/version update notifications, forwarding everything else on.
+
+## What it does
+
+1. A cron job periodically reads a known IMAP mailbox.
+2. Emails recognized as WordPress plugin/version update notifications are parsed and recorded.
+3. All other emails are forwarded unchanged to a configurable address.
+4. The same cron run (partially) scrapes each known site's front page, compares the extracted content
+   against a stored "signature", and creates a signature if none exists yet.
+5. Discrepancies between stored and actual content are flagged as potential tampering — tolerant of
+   minor/expected changes (dates, view counters, rotating banners, etc.) — with every check kept as
+   history. A tamper flag also sends a report email to the configured address.
+6. A Vue3 SPA lists all discovered sites with their current status and lets a user trigger a manual
+   check of a page on demand, showing the result inline.
+7. A small PHP JSON API (single-admin JWT auth, model/controller layout) backs the SPA and is also
+   used by the cron scripts to read/write the database.
+8. Storage is a single SQLite file — no database server required.
+
+## Architecture decisions
+
+- **Cron execution**: the *host* crontab triggers the cron scripts (via `docker compose exec`), not a
+  cron daemon baked into the image. See [Cron setup](#cron-setup).
+- **Mail**: [`webklex/php-imap`](https://github.com/Webklex/php-imap) for reading the mailbox,
+  [`PHPMailer`](https://github.com/PHPMailer/PHPMailer) for forwarding and report emails — both pulled
+  in via Composer, no PHP `imap` extension needed in the image.
+- **Auth**: a single admin account configured via `.env` (username + bcrypt password hash), issuing a
+  JWT ([`firebase/php-jwt`](https://github.com/firebase/php-jwt)) on login. No user table/registration.
+- **Frontend**: Vue3 + Vite + vue-router + Pinia + Tailwind, built and copied into `htdocs/assets/app`.
+- **Database**: SQLite only — no database server/container. The `pdo_sqlite` PHP extension is enabled
+  in the `Dockerfile`; there is no `db` service in `compose.yaml`.
+
+## Project layout
+
+```
+wp-monitor
+├── .env                          # docker + app configuration (see below), not committed
+├── .env_sample
+├── compose.yaml                  # webserver only, PHP + sqlite
+├── Dockerfile
+├── xdebug.ini
+├── .vscode/                       # PHP Debug (xdebug) launch config
+├── logs/                         # cron + app logs (mounted into the container)
+├── frontend/                     # Vue3 SPA source (not served directly)
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   ├── package.json
+│   └── src/
+│       ├── main.js
+│       ├── App.vue
+│       ├── assets/styles/
+│       │   └── main.css          # tailwind entrypoint + @font-face (Geomanist / Geologica)
+│       ├── router/index.js
+│       ├── stores/                # pinia
+│       │   ├── auth.js
+│       │   └── sites.js
+│       ├── api/client.js          # fetch wrapper, attaches JWT bearer token
+│       ├── components/
+│       │   ├── SiteTable.vue
+│       │   ├── SiteStatusBadge.vue
+│       │   └── ManualScanPanel.vue
+│       └── views/
+│           ├── LoginView.vue
+│           ├── SiteListView.vue
+│           └── SiteDetailView.vue
+└── htdocs/                        # webserver root (`localhost:9080/`)
+    ├── index.php                  # front controller: bootstrap + route dispatch
+    ├── composer.json / composer.lock
+    ├── vendor/                    # composer deps (gitignored)
+    ├── assets/
+    │   ├── fonts/
+    │   │   ├── geomanist-black-webfont.woff2   # heading font
+    │   │   └── geologica/...                    # body font (to add)
+    │   └── app/                   # built SPA output (`vite build`), gitignored
+    ├── api/                       # JSON API, model/controller layout
+    │   ├── routes.php             # route table -> controller actions
+    │   ├── Core/
+    │   │   ├── Router.php
+    │   │   ├── Request.php
+    │   │   ├── Response.php
+    │   │   ├── Database.php       # PDO SQLite connection (singleton)
+    │   │   └── Auth/
+    │   │       ├── JwtService.php
+    │   │       └── AuthMiddleware.php
+    │   ├── Controllers/
+    │   │   ├── AuthController.php     # POST /api/login
+    │   │   ├── SiteController.php     # GET /api/sites, GET /api/sites/{id}
+    │   │   └── ScanController.php     # POST /api/sites/{id}/scan (manual check)
+    │   └── Models/
+    │       ├── Site.php
+    │       ├── Snapshot.php
+    │       ├── Alert.php
+    │       └── PluginUpdate.php
+    ├── cron/                      # entry points invoked by the host crontab
+    │   ├── check_mail.php         # mailbox read + forward + parse, entry point
+    │   ├── scan_sites.php         # front-page scan + signature compare, entry point
+    │   ├── MailReader.php         # webklex/php-imap wrapper
+    │   ├── PluginUpdateParser.php # recognizes/parses WP plugin update mails
+    │   ├── MailForwarder.php      # PHPMailer wrapper for pass-through forwarding
+    │   ├── SiteScanner.php        # fetches + extracts relevant front-page content
+    │   ├── SignatureComparer.php  # normalizes/diffs content vs stored signature
+    │   └── ReportMailer.php       # PHPMailer wrapper for tamper report emails
+    └── database/
+        ├── wp-monitor.sqlite      # SQLite database file (gitignored)
+        └── migrations/
+            ├── 001_create_sites.sql
+            ├── 002_create_snapshots.sql
+            ├── 003_create_alerts.sql
+            ├── 004_create_plugin_updates.sql
+            └── 005_create_processed_emails.sql
+```
+
+### Data model (SQLite)
+
+Table | Purpose
+-|-
+`sites` | Monitored site: url, name, current status (`ok` / `tampered` / `unknown`), timestamps.
+`snapshots` | Every scan's normalized content + hash for a site — the signature history.
+`alerts` | A flagged discrepancy: which snapshot triggered it, diff summary, open/resolved, timestamps.
+`plugin_updates` | Parsed WP plugin/version update notifications extracted from mail.
+`processed_emails` | IMAP UID/Message-ID of already-handled mails, so `check_mail.php` is idempotent across runs.
+
+## Configuration (`.env`)
+
+Copy `.env_sample` to `.env` and fill in the values — `.env` is gitignored, `.env_sample` is not. In
+addition to the existing `NETWORK_NAME` / `PROJECT_NAME` variables, the app needs:
+
+```
+# IMAP mailbox to monitor
+IMAP_HOST=
+IMAP_PORT=993
+IMAP_USER=
+IMAP_PASSWORD=
+IMAP_MAILBOX=INBOX
+
+# outgoing mail (forwarding + tamper reports)
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+FORWARD_TO_EMAIL=          # non-plugin-update mail is forwarded here
+REPORT_TO_EMAIL=           # tamper alert reports are sent here
+
+# auth
+JWT_SECRET=
+ADMIN_USERNAME=
+ADMIN_PASSWORD_HASH=       # bcrypt hash, e.g. `php -r 'echo password_hash("x", PASSWORD_BCRYPT);'`
+
+# sqlite
+DB_PATH=/var/www/html/database/wp-monitor.sqlite
+```
+
+## Cron setup
+
+The host's crontab calls into the running container via `docker compose exec`. Example (every 10
+minutes), from the project root:
+
+```cron
+*/10 * * * * cd /path/to/wp-monitor && docker compose exec -T server php /var/www/html/cron/check_mail.php >> logs/cron-mail.log 2>&1
+*/15 * * * * cd /path/to/wp-monitor && docker compose exec -T server php /var/www/html/cron/scan_sites.php >> logs/cron-scan.log 2>&1
+```
+
+## Frontend dev workflow
+
+```
+cd frontend
+npm install
+npm run dev        # local dev server against the API
+npm run build      # outputs to ../htdocs/assets/app
+```
+
+## Fonts
+
+- Headings: Geomanist (`htdocs/assets/fonts/geomanist-black-webfont.woff2`, already present).
+- Body text: Geologica — not yet added, download the webfont and place it alongside under
+  `htdocs/assets/fonts/`.
+
+---
+
+## LAMP + xdebug base setup
+
+This project was bootstrapped from a generic docker LAMP + xdebug template. The following still
+applies to the container/webserver/debugger scaffolding itself.
+
+> \[!NOTE]
+> A configured `xdebug.ini` file sits in the project root. It defaults to allow step debugging. After
+> changing make sure to restart the webserver!
+
+### Setup docker containers
+
+#### With Containers VSCode extension
+
+1) Install VScode extension "Container Tools"
+2) Update `.env` file (setting network and project name, plus the app configuration above)
+3) Open `compose.yaml` file and click "Run All Services"
+
+After that the following service runs with this uri:
+
+URI|Service
+-|-
+localhost:9080/ | webroot, contents of folder = `./htdocs`
+
+#### Without the extension
+
+In a terminal, start the application by running: `docker compose up --build`.
+
+### Setup php xdebug
+
+* Install xdebug extension
+* The `.vscode` folder contains the setup for the VSCode PHP debugger (`launch.json`), mapping the
+  container's `/var/www/html` to `${workspaceFolder}/htdocs`.

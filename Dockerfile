@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+
+# Source image (update php version when needed)
+FROM php:8.3.12-apache
+
+# Composer binary (used to install app dependencies, see htdocs/composer.json)
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+# PHP ini path for upload config
+ARG UPLOADS_INI="/usr/local/etc/php/conf.d/uploads.ini"
+
+# Enable mod_rewrite, install dependencies, PHP extensions, and xdebug in one layer
+# Clean up apt cache to reduce image size
+RUN a2enmod rewrite \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends libsqlite3-dev \
+    && docker-php-ext-install pdo_sqlite \
+    && docker-php-ext-enable pdo_sqlite \
+    && printf "upload_max_filesize = 128M\npost_max_size = 128M\n" > "${UPLOADS_INI}" \
+    && pecl install xdebug-3.4.1 \
+    && docker-php-ext-enable xdebug \
+    && apt-get purge -y --auto-remove libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/* /tmp/pear
+
+USER www-data

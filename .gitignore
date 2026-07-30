@@ -1,0 +1,16 @@
+/logs
+.env
+*.code-workspace
+
+# php deps
+/htdocs/vendor/
+
+# sqlite database
+/htdocs/database/*.sqlite
+
+# built SPA output
+/htdocs/assets/app/
+
+# frontend
+/frontend/node_modules/
+/frontend/dist/
