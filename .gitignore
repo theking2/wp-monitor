@@ -1,6 +1,7 @@
 /logs
 .env
 *.code-workspace
+/.claude/
 
 # php deps
 /htdocs/vendor/

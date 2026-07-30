@@ -1,0 +1,16 @@
+RewriteEngine On
+
+# Some Apache/PHP-FPM setups don't forward the Authorization header to PHP by
+# default — re-expose it explicitly so JWT bearer auth works.
+RewriteCond %{HTTP:Authorization} ^(.+)$
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
+# Convenience: visiting the webroot goes straight to the built SPA
+RewriteRule ^$ /assets/app/ [R=302,L]
+
+# CLI/cron-only scripts and internal storage — never serve these over HTTP
+RewriteRule ^(cron|database|vendor)(/|$) - [F,L]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L]

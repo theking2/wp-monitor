@@ -1,0 +1,55 @@
+<?php
+
+namespace App\Controllers;
+
+use App\Core\Logger;
+use App\Core\Request;
+use App\Core\Response;
+use App\Cron\ReportMailer;
+use App\Cron\SignatureComparer;
+use App\Cron\SiteScanner;
+use App\Models\Site;
+
+final class ScanController
+{
+    public function scan(Request $request, array $params): void
+    {
+        $logger = Logger::get();
+
+        $site = Site::find((int) $params['id']);
+        if ($site === null) {
+            Response::error('Site not found', 404);
+            return;
+        }
+
+        $logger->debug('Manual scan requested', ['site_id' => $site['id'], 'url' => $site['url']]);
+
+        try {
+            $content = (new SiteScanner())->fetch($site['url']);
+        } catch (\Throwable $e) {
+            $logger->error('Manual scan fetch failed', [
+                'site_id' => $site['id'],
+                'url' => $site['url'],
+                'error' => $e->getMessage(),
+            ]);
+            Response::error('Could not fetch site: ' . $e->getMessage(), 502);
+            return;
+        }
+
+        $result = (new SignatureComparer())->compareAndStore($site, $content, 'manual');
+
+        if ($result['tampered']) {
+            try {
+                (new ReportMailer())->sendTamperReport($site, $result);
+            } catch (\Throwable $e) {
+                // a failed report email shouldn't turn a successful manual scan into an error response
+                $logger->warning('Tamper report email failed to send', [
+                    'site_id' => $site['id'],
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Response::json($result);
+    }
+}

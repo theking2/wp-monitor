@@ -12,6 +12,7 @@ services:
     build:
       context: .
     restart: no
+    env_file: ./.env
     ports: ["9080:80"]
     volumes:
       - ./htdocs/:/var/www/html

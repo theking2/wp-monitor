@@ -40,6 +40,7 @@ wp-monitor
 ├── .env_sample
 ├── compose.yaml                  # webserver only, PHP + sqlite
 ├── Dockerfile
+├── apache-vhost.conf              # AllowOverride for htdocs/.htaccess (front-controller rewrite)
 ├── xdebug.ini
 ├── .vscode/                       # PHP Debug (xdebug) launch config
 ├── logs/                         # cron + app logs (mounted into the container)
@@ -67,7 +68,8 @@ wp-monitor
 │           ├── SiteListView.vue
 │           └── SiteDetailView.vue
 └── htdocs/                        # webserver root (`localhost:9080/`)
-    ├── index.php                  # front controller: bootstrap + route dispatch
+    ├── index.php                  # front controller: bootstrap + CORS + route dispatch
+    ├── .htaccess                  # rewrites all non-file requests to index.php
     ├── composer.json / composer.lock
     ├── vendor/                    # composer deps (gitignored)
     ├── assets/
@@ -75,34 +77,40 @@ wp-monitor
     │   │   ├── geomanist-black-webfont.woff2   # heading font
     │   │   └── geologica/...                    # body font (to add)
     │   └── app/                   # built SPA output (`vite build`), gitignored
-    ├── api/                       # JSON API, model/controller layout
+    ├── api/
+    │   ├── bootstrap.php          # autoload + .env loading
     │   ├── routes.php             # route table -> controller actions
-    │   ├── Core/
+    │   ├── Core/                  # framework-ish plumbing (not app-specific)
     │   │   ├── Router.php
     │   │   ├── Request.php
     │   │   ├── Response.php
     │   │   ├── Database.php       # PDO SQLite connection (singleton)
+    │   │   ├── Migrator.php       # applies database/migrations/*.sql on connect
+    │   │   ├── Logger.php         # shared Monolog logger (see "Logging" below)
     │   │   └── Auth/
     │   │       ├── JwtService.php
     │   │       └── AuthMiddleware.php
-    │   ├── Controllers/
+    │   ├── Controllers/           # JSON API, model/controller layout
     │   │   ├── AuthController.php     # POST /api/login
-    │   │   ├── SiteController.php     # GET /api/sites, GET /api/sites/{id}
+    │   │   ├── SiteController.php     # GET/POST /api/sites, GET /api/sites/{id}
     │   │   └── ScanController.php     # POST /api/sites/{id}/scan (manual check)
-    │   └── Models/
-    │       ├── Site.php
-    │       ├── Snapshot.php
-    │       ├── Alert.php
-    │       └── PluginUpdate.php
+    │   ├── Models/
+    │   │   ├── Site.php
+    │   │   ├── Snapshot.php
+    │   │   ├── Alert.php
+    │   │   ├── PluginUpdate.php
+    │   │   └── ProcessedEmail.php
+    │   └── Cron/                  # used by both the API (manual scan) and cron/*.php
+    │       ├── MailReader.php         # webklex/php-imap wrapper
+    │       ├── PluginUpdateParser.php # recognizes/parses WP plugin update mails
+    │       ├── Mailer.php              # shared PHPMailer/SMTP setup
+    │       ├── MailForwarder.php      # forwards non-plugin-update mail
+    │       ├── ReportMailer.php       # sends tamper alert report emails
+    │       ├── SiteScanner.php        # fetches + extracts relevant front-page content
+    │       └── SignatureComparer.php  # normalizes/diffs content vs stored signature
     ├── cron/                      # entry points invoked by the host crontab
-    │   ├── check_mail.php         # mailbox read + forward + parse, entry point
-    │   ├── scan_sites.php         # front-page scan + signature compare, entry point
-    │   ├── MailReader.php         # webklex/php-imap wrapper
-    │   ├── PluginUpdateParser.php # recognizes/parses WP plugin update mails
-    │   ├── MailForwarder.php      # PHPMailer wrapper for pass-through forwarding
-    │   ├── SiteScanner.php        # fetches + extracts relevant front-page content
-    │   ├── SignatureComparer.php  # normalizes/diffs content vs stored signature
-    │   └── ReportMailer.php       # PHPMailer wrapper for tamper report emails
+    │   ├── check_mail.php
+    │   └── scan_sites.php
     └── database/
         ├── wp-monitor.sqlite      # SQLite database file (gitignored)
         └── migrations/
@@ -130,8 +138,11 @@ addition to the existing `NETWORK_NAME` / `PROJECT_NAME` variables, the app need
 
 ```
 # IMAP mailbox to monitor
+# port 993 = implicit TLS (encryption=ssl, the default) — most providers.
+# port 143 = STARTTLS (encryption=tls) or plaintext. Never 465 — that's SMTPS, not IMAP.
 IMAP_HOST=
 IMAP_PORT=993
+IMAP_ENCRYPTION=ssl
 IMAP_USER=
 IMAP_PASSWORD=
 IMAP_MAILBOX=INBOX
@@ -145,13 +156,50 @@ FORWARD_TO_EMAIL=          # non-plugin-update mail is forwarded here
 REPORT_TO_EMAIL=           # tamper alert reports are sent here
 
 # auth
-JWT_SECRET=
+JWT_SECRET=                # >= 32 random bytes, e.g. `openssl rand -base64 32` (firebase/php-jwt rejects shorter keys)
 ADMIN_USERNAME=
 ADMIN_PASSWORD_HASH=       # bcrypt hash, e.g. `php -r 'echo password_hash("x", PASSWORD_BCRYPT);'`
 
 # sqlite
 DB_PATH=/var/www/html/database/wp-monitor.sqlite
+
+# logging (see "Logging" section below)
+LOG_PATH=
+LOG_LEVEL=info
+LOG_ROTATE_CRON=0 0 * * *
+LOG_ROTATE_MAX_FILES=14
+LOG_ROTATE_MIN_SIZE=0
+LOG_ROTATE_COMPRESS=false
 ```
+
+> \[!IMPORTANT]
+> Our `.env` loader (`htdocs/api/bootstrap.php`) is intentionally minimal: it splits each line on the
+> first `=` and trims whitespace — it does **not** strip surrounding quotes. Never wrap values in `"`
+> or `'`; write `IMAP_PASSWORD=my#pass` and `LOG_ROTATE_CRON=0 0 * * *`, not `IMAP_PASSWORD="my#pass"`.
+> A `#` or space inside a value is fine as-is; quotes become part of the value and will silently break
+> whatever reads it (wrong password, malformed cron expression, etc.).
+
+## Logging
+
+Errors and key events are logged via [`monolog/monolog`](https://github.com/Seldaek/monolog) using
+[`kingsoft/monolog-handler`](https://github.com/theking2/kingsoft-monolog-handler)'s
+`CronRotatingFileHandler`, which rotates the log file on a cron schedule (independent of the app's own
+mail/scan cron jobs) rather than by process restart. `App\Core\Logger::get()` returns a shared
+`Monolog\Logger` instance; call it wherever an event is worth recording (`debug` for verbose
+tracing, `info` for normal operation, `warning` for recoverable/notable events like a failed login or
+detected tampering, `error` for exceptions/failures).
+
+- `LOG_PATH` — defaults to a `logs/` folder one level above `htdocs` (i.e. the same `logs/` already
+  used for xdebug output in docker-compose, or the Plesk vhost-root `logs/` folder — create it if it
+  doesn't exist and make sure the PHP process can write to it).
+- `LOG_LEVEL` — minimum level written: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`.
+- `LOG_ROTATE_CRON` — a standard 5-field cron expression for when the log file itself gets rotated
+  (checked lazily on each write, not by a separate system cron entry).
+- `LOG_ROTATE_MAX_FILES` / `LOG_ROTATE_MIN_SIZE` / `LOG_ROTATE_COMPRESS` — rotation retention/size/compression.
+
+`index.php` also wraps the router dispatch in a try/catch: any uncaught exception is logged (with full
+stack trace) and converted into a generic `500` JSON response, so a bug never leaks a stack trace (with
+server file paths) to the client regardless of the server's `display_errors` setting.
 
 ## Cron setup
 
