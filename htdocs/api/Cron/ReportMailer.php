@@ -28,5 +28,10 @@ final class ReportMailer extends Mailer
 
         Logger::get()->warning('Sending tamper report email', ['site_id' => $site['id'], 'to' => $to]);
         $mail->send();
+        Logger::get()->info('Tamper report accepted by SMTP server', [
+            'site_id' => $site['id'],
+            'to' => $to,
+            'smtp_response' => trim($mail->getSMTPInstance()->getLastReply()),
+        ]);
     }
 }

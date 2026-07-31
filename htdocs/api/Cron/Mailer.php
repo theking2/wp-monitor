@@ -29,7 +29,13 @@ abstract class Mailer
         $mail->SMTPAuth = true;
         $mail->Username = getenv('SMTP_USER') ?: '';
         $mail->Password = getenv('SMTP_PASSWORD') ?: '';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        // Forcing STARTTLS regardless of port was a real mismatch risk (e.g. port 465 is
+        // implicit TLS, not STARTTLS) — make it match whatever the account actually needs.
+        $mail->SMTPSecure = match (strtolower(getenv('SMTP_ENCRYPTION') ?: 'tls')) {
+            'ssl' => PHPMailer::ENCRYPTION_SMTPS,
+            'none', '' => '',
+            default => PHPMailer::ENCRYPTION_STARTTLS,
+        };
         $mail->SMTPKeepAlive = true;
         // PHPMailer's own default is 300s — an unreachable/firewalled/slow SMTP server would
         // otherwise block the whole cron run for up to 5 minutes on a single email before

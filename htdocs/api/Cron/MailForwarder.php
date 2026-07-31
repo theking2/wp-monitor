@@ -32,5 +32,10 @@ final class MailForwarder extends Mailer
 
         Logger::get()->info('Forwarding email', ['to' => $to, 'subject' => $subject]);
         $mail->send();
+        Logger::get()->info('Forward accepted by SMTP server', [
+            'to' => $to,
+            'subject' => $subject,
+            'smtp_response' => trim($mail->getSMTPInstance()->getLastReply()),
+        ]);
     }
 }
