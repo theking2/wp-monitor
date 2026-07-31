@@ -7,11 +7,22 @@ use PDO;
 
 final class Site
 {
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * Includes each site's most recent snapshot similarity (nullable — null for a
+     * freshly-captured signature with nothing yet to compare against) so the frontend can tell
+     * "identical" from "small tolerated drift" within an otherwise-identical `ok` status.
+     *
+     * @return array<int, array<string, mixed>>
+     */
     public static function all(): array
     {
         return Database::connection()
-            ->query('SELECT * FROM sites ORDER BY name COLLATE NOCASE')
+            ->query(
+                'SELECT s.*,
+                    (SELECT similarity FROM snapshots WHERE site_id = s.id ORDER BY id DESC LIMIT 1) AS latest_similarity
+                 FROM sites s
+                 ORDER BY s.name COLLATE NOCASE'
+            )
             ->fetchAll();
     }
 
