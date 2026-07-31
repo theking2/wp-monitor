@@ -3,56 +3,62 @@
 namespace App\Cron;
 
 use App\Core\Logger;
-use Webklex\PHPIMAP\ClientManager;
-use Webklex\PHPIMAP\Message;
+use App\Cron\Imap\ImapClient;
+use App\Cron\Imap\ImapMessage;
 
 final class MailReader
 {
-    private ClientManager $manager;
+    private ImapClient $client;
 
     public function __construct()
     {
-        $this->manager = new ClientManager([
-            'default' => 'default',
-            'accounts' => [
-                'default' => [
-                    'host' => getenv('IMAP_HOST') ?: '',
-                    'port' => (int) (getenv('IMAP_PORT') ?: 993),
-                    'encryption' => getenv('IMAP_ENCRYPTION') ?: 'ssl',
-                    'validate_cert' => true,
-                    'username' => getenv('IMAP_USER') ?: '',
-                    'password' => getenv('IMAP_PASSWORD') ?: '',
-                    'protocol' => 'imap',
-                ],
-            ],
-        ]);
+        $this->client = new ImapClient();
     }
 
-    /** @return Message[] */
+    /**
+     * Headers/size only — deliberately does NOT fetch message bodies, so one huge or
+     * oddly-encoded message can't cost memory before it's even been looked at. Call
+     * fetchBody() per message instead, after checking getSize().
+     *
+     * @return ImapMessage[]
+     */
     public function fetchUnseen(): array
     {
         $mailbox = getenv('IMAP_MAILBOX') ?: 'INBOX';
         Logger::get()->debug('Connecting to IMAP mailbox', ['host' => getenv('IMAP_HOST') ?: '', 'mailbox' => $mailbox]);
 
-        $client = $this->manager->account('default');
-        $client->connect();
+        $this->client->connect(
+            getenv('IMAP_HOST') ?: '',
+            (int) (getenv('IMAP_PORT') ?: 993),
+            getenv('IMAP_ENCRYPTION') ?: 'ssl'
+        );
+        $this->client->login(getenv('IMAP_USER') ?: '', getenv('IMAP_PASSWORD') ?: '');
+        $this->client->selectMailbox($mailbox);
 
-        $folder = $client->getFolder($mailbox);
-
-        $messages = $folder->messages()
-            ->whereUnseen()
-            ->leaveUnread()
-            ->setFetchOrder('asc')
-            ->get()
-            ->all();
+        $messages = [];
+        foreach ($this->client->searchUnseen() as $uid) {
+            $info = $this->client->fetchHeaderInfo($uid);
+            $messages[] = new ImapMessage($uid, $info['size'], $info['header']);
+        }
 
         Logger::get()->debug('IMAP fetch complete', ['unseen_count' => count($messages)]);
 
         return $messages;
     }
 
-    public function markSeen(Message $message): void
+    /** Re-fetches a single message with its body populated. */
+    public function fetchBody(ImapMessage $message): ImapMessage
     {
-        $message->setFlag('Seen');
+        return $message->withRawMessage($this->client->fetchFullMessage($message->getUid()));
+    }
+
+    public function markSeen(ImapMessage $message): void
+    {
+        $this->client->markSeen($message->getUid());
+    }
+
+    public function disconnect(): void
+    {
+        $this->client->logout();
     }
 }

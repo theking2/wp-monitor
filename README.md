@@ -23,9 +23,10 @@ keeps an eye on a mailbox for WordPress plugin/version update notifications, for
 
 - **Cron execution**: the *host* crontab triggers the cron scripts (via `docker compose exec`), not a
   cron daemon baked into the image. See [Cron setup](#cron-setup).
-- **Mail**: [`webklex/php-imap`](https://github.com/Webklex/php-imap) for reading the mailbox,
-  [`PHPMailer`](https://github.com/PHPMailer/PHPMailer) for forwarding and report emails — both pulled
-  in via Composer, no PHP `imap` extension needed in the image.
+- **Mail**: reading the mailbox uses a small hand-rolled IMAP4rev1 client
+  (`App\Cron\Imap\ImapClient`/`ImapMessage`, raw TLS socket, no PHP `imap` extension needed) rather
+  than a library — see [Why a hand-rolled IMAP client](#why-a-hand-rolled-imap-client) below.
+  [`PHPMailer`](https://github.com/PHPMailer/PHPMailer) is still used for forwarding and report emails.
 - **Auth**: a single admin account configured via `.env` (username + bcrypt password hash), issuing a
   JWT ([`firebase/php-jwt`](https://github.com/firebase/php-jwt)) on login. No user table/registration.
 - **Frontend**: Vue3 + Vite + vue-router + Pinia + Tailwind, built and copied into `htdocs/assets/app`.
@@ -101,7 +102,10 @@ wp-monitor
     │   │   ├── PluginUpdate.php
     │   │   └── ProcessedEmail.php
     │   └── Cron/                  # used by both the API (manual scan) and cron/*.php
-    │       ├── MailReader.php         # webklex/php-imap wrapper
+    │       ├── Imap/
+    │       │   ├── ImapClient.php      # raw-socket IMAP4rev1 client (login/search/fetch/store)
+    │       │   └── ImapMessage.php     # header/MIME parsing, safe charset decoding
+    │       ├── MailReader.php         # uses Imap\ImapClient to list/fetch/mark-seen messages
     │       ├── PluginUpdateParser.php # recognizes/parses WP plugin update mails
     │       ├── Mailer.php              # shared PHPMailer/SMTP setup
     │       ├── MailForwarder.php      # forwards non-plugin-update mail
@@ -150,6 +154,7 @@ IMAP_MAILBOX=INBOX
 # outgoing mail (forwarding + tamper reports)
 SMTP_HOST=
 SMTP_PORT=587
+SMTP_TIMEOUT=15
 SMTP_USER=
 SMTP_PASSWORD=
 FORWARD_TO_EMAIL=          # non-plugin-update mail is forwarded here
@@ -170,6 +175,10 @@ LOG_ROTATE_CRON=0 0 * * *
 LOG_ROTATE_MAX_FILES=14
 LOG_ROTATE_MIN_SIZE=0
 LOG_ROTATE_COMPRESS=false
+
+# cron safety limits
+CRON_MEMORY_LIMIT=512M
+IMAP_MAX_MESSAGE_SIZE=20971520
 ```
 
 > \[!IMPORTANT]
@@ -196,10 +205,37 @@ detected tampering, `error` for exceptions/failures).
 - `LOG_ROTATE_CRON` — a standard 5-field cron expression for when the log file itself gets rotated
   (checked lazily on each write, not by a separate system cron entry).
 - `LOG_ROTATE_MAX_FILES` / `LOG_ROTATE_MIN_SIZE` / `LOG_ROTATE_COMPRESS` — rotation retention/size/compression.
+- If the configured log file can't be opened (bad `LOG_PATH`, permissions), `Logger::get()` falls back
+  to `stderr` rather than throwing — logging failing must never be *why* a real error goes unlogged.
 
 `index.php` also wraps the router dispatch in a try/catch: any uncaught exception is logged (with full
 stack trace) and converted into a generic `500` JSON response, so a bug never leaks a stack trace (with
 server file paths) to the client regardless of the server's `display_errors` setting.
+
+### Why a hand-rolled IMAP client
+
+Reading the mailbox originally used [`webklex/php-imap`](https://github.com/Webklex/php-imap). It was
+dropped for two concrete reasons hit in production: it pulled in Laravel's `illuminate/*` and Symfony
+components just for basic collections (which is what forced a PHP 8.4 floor), and its body-decoding
+path calls `iconv($from, $to.'//IGNORE', $str)` — a combination with a known glibc bug that can exhaust
+PHP's memory limit converting even a *tiny* string when a message's declared charset doesn't match its
+actual bytes, completely independent of message size. `App\Cron\Imap\ImapClient`/`ImapMessage` replace
+it: a raw-socket IMAP4rev1 client covering only what this app needs (login, select, search unseen,
+fetch header/size, fetch full message, mark seen), with our own MIME/charset handling using
+`mb_convert_encoding` instead of the buggy `iconv` form. Net effect: `htdocs/vendor` dropped from ~20
+packages to 6, and the PHP floor dropped back to 8.1.
+
+### Cron safety limits
+
+Because the IMAP client fetches headers/size only first (`MailReader::fetchUnseen()`), `check_mail.php`
+can decide *before* decoding anything: any message over `IMAP_MAX_MESSAGE_SIZE` bytes is skipped
+without ever fetching its body (marked handled, classification `skipped_too_large`), and only messages
+under that threshold get their full body fetched (`MailReader::fetchBody()`). `CRON_MEMORY_LIMIT` raises
+PHP's memory limit for both cron scripts as an additional line of defense. A single message's
+processing failure (a bad forward, an unusual encoding, ...) is caught and logged without aborting the
+rest of the batch, and is deliberately left unseen so it's retried next run — except for the oversized
+case above, which is marked seen immediately (before any risky decode is attempted) precisely so a
+genuinely poisonous message can't crash the same run forever instead of just being skipped once.
 
 ## Cron setup
 

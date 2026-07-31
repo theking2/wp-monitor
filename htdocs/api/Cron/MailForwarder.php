@@ -3,11 +3,11 @@
 namespace App\Cron;
 
 use App\Core\Logger;
-use Webklex\PHPIMAP\Message;
+use App\Cron\Imap\ImapMessage;
 
 final class MailForwarder extends Mailer
 {
-    public function forward(Message $message): void
+    public function forward(ImapMessage $message): void
     {
         $to = getenv('FORWARD_TO_EMAIL') ?: '';
         if ($to === '') {

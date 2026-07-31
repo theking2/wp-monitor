@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # Source image (update php version when needed)
-# 8.4+ required: webklex/php-imap's dependency chain (illuminate/symfony components) needs PHP >= 8.4.1
+# composer.json only requires PHP >= 8.1 — staying on 8.4 here just because it's already
+# the version this has been tested/deployed against, not because anything mandates it.
 FROM php:8.4.22-apache
 
 # Composer binary (used to install app dependencies, see htdocs/composer.json)

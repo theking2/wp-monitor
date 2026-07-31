@@ -9,6 +9,12 @@ use App\Cron\PluginUpdateParser;
 use App\Models\PluginUpdate;
 use App\Models\ProcessedEmail;
 
+// A single oversized message (huge attachment/embedded image) can otherwise exhaust memory
+// while being decoded; give ourselves headroom before that becomes the limiting factor.
+ini_set('memory_limit', getenv('CRON_MEMORY_LIMIT') ?: '512M');
+
+$maxMessageSize = (int) (getenv('IMAP_MAX_MESSAGE_SIZE') ?: 20 * 1024 * 1024);
+
 $logger = Logger::get();
 
 try {
@@ -20,51 +26,84 @@ try {
     $logger->info('check_mail run started', ['unseen_count' => count($messages)]);
 
     foreach ($messages as $message) {
-        $messageId = (string) $message->getMessageId();
-        if ($messageId === '') {
-            $messageId = 'uid-' . $message->getUid();
-        }
-
-        if (ProcessedEmail::isProcessed($messageId)) {
-            $logger->debug('Skipping already-processed message', ['message_id' => $messageId]);
-            $reader->markSeen($message);
-            continue;
-        }
-
-        $subject = (string) $message->getSubject();
-        $body = $message->getTextBody() ?: strip_tags($message->getHTMLBody());
-
-        if ($parser->looksLikePluginUpdate($subject, $body)) {
-            $updates = $parser->extractUpdates($body);
-            $siteUrl = $parser->extractSiteUrl($body);
-
-            if ($updates === []) {
-                // Recognized as an update notification but the specifics didn't match a known
-                // pattern — keep a raw record instead of silently dropping it.
-                $logger->warning('Recognized plugin-update email but could not parse specifics', [
-                    'message_id' => $messageId,
-                    'subject' => $subject,
-                ]);
-                PluginUpdate::create('(unparsed)', null, $siteUrl, mb_substr($body, 0, 2000));
-            } else {
-                $logger->info('Parsed plugin update notification', [
-                    'message_id' => $messageId,
-                    'count' => count($updates),
-                ]);
-                foreach ($updates as $update) {
-                    PluginUpdate::create($update['plugin'], $update['version'], $siteUrl, mb_substr($body, 0, 2000));
-                }
+        // Everything for this one message lives in this try/catch — deliberately including the
+        // "already processed"/size checks and their markSeen() calls, not just the decode step,
+        // so literally nothing about a single message (bad headers, a dropped IMAP connection
+        // mid-batch, a failed forward, ...) can abort processing of the rest of the batch.
+        try {
+            $messageId = (string) $message->getMessageId();
+            if ($messageId === '') {
+                $messageId = 'uid-' . $message->getUid();
             }
 
-            ProcessedEmail::markProcessed($messageId, $subject, 'plugin_update');
-        } else {
-            $logger->debug('Forwarding non-plugin-update email', ['message_id' => $messageId, 'subject' => $subject]);
-            $forwarder->forward($message);
-            ProcessedEmail::markProcessed($messageId, $subject, 'forwarded');
-        }
+            if (ProcessedEmail::isProcessed($messageId)) {
+                $logger->debug('Skipping already-processed message', ['message_id' => $messageId]);
+                $reader->markSeen($message);
+                continue;
+            }
 
-        $reader->markSeen($message);
+            $size = $message->getSize();
+            if ($size > $maxMessageSize) {
+                // Never attempt to decode this — that's exactly what exhausts memory. Mark it
+                // handled so it doesn't crash (and get retried forever) on every future run.
+                $logger->warning('Skipping oversized message without decoding it', [
+                    'message_id' => $messageId,
+                    'size' => $size,
+                    'max_size' => $maxMessageSize,
+                ]);
+                ProcessedEmail::markProcessed($messageId, null, 'skipped_too_large');
+                $reader->markSeen($message);
+                continue;
+            }
+
+            $message = $reader->fetchBody($message);
+            $subject = (string) $message->getSubject();
+            $body = $message->getTextBody() ?: strip_tags($message->getHTMLBody());
+
+            if ($parser->looksLikePluginUpdate($subject, $body)) {
+                $updates = $parser->extractUpdates($body);
+                $siteUrl = $parser->extractSiteUrl($body);
+
+                if ($updates === []) {
+                    // Recognized as an update notification but the specifics didn't match a
+                    // known pattern — keep a raw record instead of silently dropping it.
+                    $logger->warning('Recognized plugin-update email but could not parse specifics', [
+                        'message_id' => $messageId,
+                        'subject' => $subject,
+                    ]);
+                    PluginUpdate::create('(unparsed)', null, $siteUrl, mb_substr($body, 0, 2000));
+                } else {
+                    $logger->info('Parsed plugin update notification', [
+                        'message_id' => $messageId,
+                        'count' => count($updates),
+                    ]);
+                    foreach ($updates as $update) {
+                        PluginUpdate::create($update['plugin'], $update['version'], $siteUrl, mb_substr($body, 0, 2000));
+                    }
+                }
+
+                ProcessedEmail::markProcessed($messageId, $subject, 'plugin_update');
+            } else {
+                $logger->debug('Forwarding non-plugin-update email', ['message_id' => $messageId, 'subject' => $subject]);
+                $forwarder->forward($message);
+                ProcessedEmail::markProcessed($messageId, $subject, 'forwarded');
+            }
+
+            $reader->markSeen($message);
+        } catch (\Throwable $e) {
+            // Don't let one bad message (malformed MIME, a failed SMTP forward, a dropped
+            // connection, ...) abort the rest of the batch. Left unseen deliberately, so it's
+            // retried next run — except the oversized case above, which is marked seen before
+            // any risky decode is attempted, precisely so it can't crash every run forever.
+            $logger->error('Failed to process message, will retry next run', [
+                'uid' => $message->getUid(),
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
+
+    $reader->disconnect();
+    $forwarder->closeConnection();
 
     $logger->info('check_mail run finished', ['processed' => count($messages)]);
     echo count($messages) . " message(s) processed\n";

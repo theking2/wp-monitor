@@ -6,8 +6,22 @@ use PHPMailer\PHPMailer\PHPMailer;
 
 abstract class Mailer
 {
+    private ?PHPMailer $mailer = null;
+
+    /**
+     * Reuses one SMTP connection (SMTPKeepAlive) across every send() in the same run instead of
+     * a fresh connect+STARTTLS+AUTH handshake per email — with a mailbox full of messages to
+     * forward, that per-message handshake cost alone can add up to tens of seconds.
+     */
     protected function newMailer(): PHPMailer
     {
+        if ($this->mailer !== null) {
+            $this->mailer->clearAddresses();
+            $this->mailer->clearAttachments();
+
+            return $this->mailer;
+        }
+
         $mail = new PHPMailer(true);
         $mail->isSMTP();
         $mail->Host = getenv('SMTP_HOST') ?: '';
@@ -16,8 +30,20 @@ abstract class Mailer
         $mail->Username = getenv('SMTP_USER') ?: '';
         $mail->Password = getenv('SMTP_PASSWORD') ?: '';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->SMTPKeepAlive = true;
+        // PHPMailer's own default is 300s — an unreachable/firewalled/slow SMTP server would
+        // otherwise block the whole cron run for up to 5 minutes on a single email before
+        // failing. Fail fast instead; the caller's try/catch already handles a failed send.
+        $mail->Timeout = (int) (getenv('SMTP_TIMEOUT') ?: 15);
         $mail->setFrom(getenv('SMTP_USER') ?: 'wp-monitor@localhost', 'wp-monitor');
 
+        $this->mailer = $mail;
+
         return $mail;
+    }
+
+    public function closeConnection(): void
+    {
+        $this->mailer?->smtpClose();
     }
 }
