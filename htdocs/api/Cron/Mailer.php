@@ -23,6 +23,7 @@ abstract class Mailer
         }
 
         $mail = new PHPMailer(true);
+        $mail->CharSet = PHPMailer::CHARSET_UTF8;
         $mail->isSMTP();
         $mail->Host = getenv('SMTP_HOST') ?: '';
         $mail->Port = (int) (getenv('SMTP_PORT') ?: 587);

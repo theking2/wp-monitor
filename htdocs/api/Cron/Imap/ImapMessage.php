@@ -47,13 +47,8 @@ final class ImapMessage
     public function getSubject(): string
     {
         $raw = $this->headers['subject'] ?? '';
-        if ($raw === '') {
-            return '';
-        }
 
-        $decoded = @mb_decode_mimeheader($raw);
-
-        return $decoded !== false && $decoded !== '' ? $decoded : $raw;
+        return $raw === '' ? '' : self::decodeMimeHeader($raw);
     }
 
     public function getTextBody(): string
@@ -207,6 +202,30 @@ final class ImapMessage
         } catch (\Throwable) {
             return $str;
         }
+    }
+
+    /**
+     * RFC 2047 encoded-word ("=?charset?B|Q?text?=") decoder for headers, replacing
+     * mb_decode_mimeheader() — deprecated since PHP 8.2 and, confirmed in production, prone to
+     * mojibake (misreads the decoded bytes' encoding) and to leaving a stray space between two
+     * adjacent encoded-words that a long subject got split across, which RFC 2047 says must be
+     * removed when rejoining (that gap is line-folding whitespace, not real content).
+     */
+    private static function decodeMimeHeader(string $header): string
+    {
+        $decoded = preg_replace_callback(
+            '/=\?([^?]+)\?([BbQq])\?([^?]*)\?=(?:\s+(?==\?))?/',
+            static function (array $m): string {
+                $bytes = strtoupper($m[2]) === 'B'
+                    ? (base64_decode($m[3]) ?: '')
+                    : quoted_printable_decode(str_replace('_', ' ', $m[3]));
+
+                return self::convertToUtf8($bytes, strtoupper($m[1]));
+            },
+            $header
+        );
+
+        return $decoded ?? $header;
     }
 
     /** @return string[] */
