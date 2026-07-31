@@ -122,7 +122,15 @@ final class ImapClient
     private function runCommand(string $command): array
     {
         $tag = sprintf('A%04d', ++$this->tagCounter);
-        fwrite($this->stream, "{$tag} {$command}\r\n");
+
+        // A long enough stall elsewhere in the same run (e.g. a slow SMTP send) can leave this
+        // connection idle long enough for the server to have quietly dropped it; @-suppress the
+        // raw PHP warning fwrite() emits for a dead socket and turn it into a normal catchable
+        // failure instead, same as every other connection-loss case here.
+        $written = @fwrite($this->stream, "{$tag} {$command}\r\n");
+        if ($written === false) {
+            throw new \RuntimeException('IMAP connection is no longer usable (write failed)');
+        }
 
         $lines = [];
         $literal = null;
@@ -150,6 +158,11 @@ final class ImapClient
     private function readRawLine(): string
     {
         $line = fgets($this->stream);
+
+        if (stream_get_meta_data($this->stream)['timed_out']) {
+            throw new \RuntimeException('IMAP connection timed out waiting for a response');
+        }
+
         if ($line === false) {
             throw new \RuntimeException('IMAP connection closed unexpectedly');
         }
@@ -162,6 +175,11 @@ final class ImapClient
         $data = '';
         while (strlen($data) < $length) {
             $chunk = fread($this->stream, $length - strlen($data));
+
+            if (stream_get_meta_data($this->stream)['timed_out']) {
+                throw new \RuntimeException('IMAP connection timed out while reading a literal');
+            }
+
             if ($chunk === false || $chunk === '') {
                 throw new \RuntimeException('IMAP connection closed while reading a literal');
             }

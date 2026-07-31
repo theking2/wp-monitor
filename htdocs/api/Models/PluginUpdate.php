@@ -17,18 +17,24 @@ final class PluginUpdate
     }
 
     /** @return array<string, mixed> */
-    public static function create(string $pluginName, ?string $version, ?string $siteUrl, string $rawExcerpt): array
-    {
+    public static function create(
+        string $pluginName,
+        ?string $version,
+        ?string $siteUrl,
+        string $rawExcerpt,
+        string $status = 'success'
+    ): array {
         $pdo = Database::connection();
         $stmt = $pdo->prepare(
-            'INSERT INTO plugin_updates (plugin_name, version, site_url, raw_excerpt)
-             VALUES (:plugin_name, :version, :site_url, :raw_excerpt)'
+            'INSERT INTO plugin_updates (plugin_name, version, site_url, raw_excerpt, status)
+             VALUES (:plugin_name, :version, :site_url, :raw_excerpt, :status)'
         );
         $stmt->execute([
             'plugin_name' => $pluginName,
             'version' => $version,
             'site_url' => $siteUrl,
             'raw_excerpt' => $rawExcerpt,
+            'status' => $status,
         ]);
 
         $id = (int) $pdo->lastInsertId();

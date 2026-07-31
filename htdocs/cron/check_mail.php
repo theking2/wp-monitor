@@ -8,6 +8,7 @@ use App\Cron\MailReader;
 use App\Cron\PluginUpdateParser;
 use App\Models\PluginUpdate;
 use App\Models\ProcessedEmail;
+use App\Models\Site;
 
 // A single oversized message (huge attachment/embedded image) can otherwise exhaust memory
 // while being decoded; give ourselves headroom before that becomes the limiting factor.
@@ -64,6 +65,15 @@ try {
                 $updates = $parser->extractUpdates($body);
                 $siteUrl = $parser->extractSiteUrl($body);
 
+                if ($siteUrl !== null) {
+                    // This is the actual "sites get discovered from mail" mechanism — without
+                    // this, a plugin-update email could be parsed perfectly and still never
+                    // show up in the monitored sites list.
+                    $siteName = $parser->extractSiteName($subject) ?? $siteUrl;
+                    $site = Site::firstOrCreateByUrl(rtrim($siteUrl, '/'), $siteName);
+                    $logger->debug('Site discovered/matched from mail', ['site_id' => $site['id'], 'url' => $site['url']]);
+                }
+
                 if ($updates === []) {
                     // Recognized as an update notification but the specifics didn't match a
                     // known pattern — keep a raw record instead of silently dropping it.
@@ -71,14 +81,23 @@ try {
                         'message_id' => $messageId,
                         'subject' => $subject,
                     ]);
-                    PluginUpdate::create('(unparsed)', null, $siteUrl, mb_substr($body, 0, 2000));
+                    PluginUpdate::create('(unparsed)', null, $siteUrl, mb_substr($body, 0, 2000), 'unknown');
                 } else {
+                    $failedCount = count(array_filter($updates, static fn($u) => $u['status'] === 'failed'));
                     $logger->info('Parsed plugin update notification', [
                         'message_id' => $messageId,
                         'count' => count($updates),
+                        'failed_count' => $failedCount,
                     ]);
+                    if ($failedCount > 0) {
+                        $logger->warning('One or more plugin updates failed', [
+                            'message_id' => $messageId,
+                            'site_url' => $siteUrl,
+                            'failed_count' => $failedCount,
+                        ]);
+                    }
                     foreach ($updates as $update) {
-                        PluginUpdate::create($update['plugin'], $update['version'], $siteUrl, mb_substr($body, 0, 2000));
+                        PluginUpdate::create($update['plugin'], $update['version'], $siteUrl, mb_substr($body, 0, 2000), $update['status']);
                     }
                 }
 
