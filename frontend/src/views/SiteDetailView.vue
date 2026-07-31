@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { api } from '../api/client'
 import SiteStatusBadge from '../components/SiteStatusBadge.vue'
@@ -10,6 +10,12 @@ const site = ref(null)
 const error = ref('')
 const loading = ref(true)
 
+const editingName = ref(false)
+const nameDraft = ref('')
+const renaming = ref(false)
+const renameError = ref('')
+const nameInput = ref(null)
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -19,6 +25,39 @@ async function load() {
     error.value = e.message
   } finally {
     loading.value = false
+  }
+}
+
+async function startEditingName() {
+  nameDraft.value = site.value.name
+  renameError.value = ''
+  editingName.value = true
+  await nextTick()
+  nameInput.value?.focus()
+}
+
+function cancelEditingName() {
+  editingName.value = false
+  renameError.value = ''
+}
+
+async function saveName() {
+  const name = nameDraft.value.trim()
+  if (name === '') {
+    renameError.value = 'Name cannot be empty'
+    return
+  }
+
+  renaming.value = true
+  renameError.value = ''
+  try {
+    const updated = await api.renameSite(site.value.id, name)
+    site.value.name = updated.name
+    editingName.value = false
+  } catch (e) {
+    renameError.value = e.message
+  } finally {
+    renaming.value = false
   }
 }
 
@@ -35,10 +74,50 @@ onMounted(load)
     <p v-else-if="error" class="text-sm text-red-600 dark:text-red-400">{{ error }}</p>
 
     <template v-else-if="site">
-      <div class="flex items-center gap-3">
-        <h2 class="font-heading text-2xl">{{ site.name }}</h2>
-        <SiteStatusBadge :status="site.status" />
+      <div>
+        <div v-if="editingName" class="flex items-center gap-2">
+          <input
+            ref="nameInput"
+            v-model="nameDraft"
+            type="text"
+            class="font-heading rounded-md border border-slate-300 px-2 py-1 text-2xl dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            @keyup.enter="saveName"
+            @keyup.escape="cancelEditingName"
+          >
+          <button
+            type="button"
+            :disabled="renaming"
+            class="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+            @click="saveName"
+          >
+            {{ renaming ? 'Saving…' : 'Save' }}
+          </button>
+          <button
+            type="button"
+            class="text-sm text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            @click="cancelEditingName"
+          >
+            Cancel
+          </button>
+        </div>
+        <div v-else class="flex items-center gap-3">
+          <h2 class="font-heading text-2xl">{{ site.name }}</h2>
+          <SiteStatusBadge :status="site.status" />
+          <button
+            type="button"
+            title="Rename site"
+            aria-label="Rename site"
+            class="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            @click="startEditingName"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+            </svg>
+          </button>
+        </div>
+        <p v-if="renameError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ renameError }}</p>
       </div>
+
       <a
         :href="site.url"
         target="_blank"

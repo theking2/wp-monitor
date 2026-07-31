@@ -38,4 +38,5 @@ export const api = {
   getSite: (id) => request(`/sites/${id}`),
   createSite: (payload) => request('/sites', { method: 'POST', body: payload }),
   scanSite: (id) => request(`/sites/${id}/scan`, { method: 'POST' }),
+  renameSite: (id, name) => request(`/sites/${id}/rename`, { method: 'POST', body: { name } }),
 }
