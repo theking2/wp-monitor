@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Core\Database;
-use PDO;
 
 final class Site
 {
@@ -64,5 +63,16 @@ final class Site
             'UPDATE sites SET status = :status, last_checked_at = :now, updated_at = :now WHERE id = :id'
         );
         $stmt->execute(['status' => $status, 'now' => date('c'), 'id' => $id]);
+    }
+
+    /** @return array<string, mixed>|null */
+    public static function updateName(int $id, string $name): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE sites SET name = :name, updated_at = :now WHERE id = :id'
+        );
+        $stmt->execute(['name' => $name, 'now' => date('c'), 'id' => $id]);
+
+        return self::find($id);
     }
 }

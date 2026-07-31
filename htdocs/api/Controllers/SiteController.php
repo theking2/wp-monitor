@@ -50,4 +50,27 @@ final class SiteController
 
         Response::json($site, 201);
     }
+
+    public function rename(Request $request, array $params): void
+    {
+        $site = Site::find((int) $params['id']);
+        if ($site === null) {
+            Response::error('Site not found', 404);
+            return;
+        }
+
+        $name = trim((string) ($request->body['name'] ?? ''));
+        if ($name === '') {
+            Response::error('Name cannot be empty', 422);
+            return;
+        }
+
+        Logger::get()->info('Site renamed', [
+            'site_id' => $site['id'],
+            'old_name' => $site['name'],
+            'new_name' => $name,
+        ]);
+
+        Response::json(Site::updateName($site['id'], $name));
+    }
 }

@@ -11,5 +11,6 @@ $router->post('/api/login', [new AuthController(), 'login']);
 $router->get('/api/sites', [new SiteController(), 'index'], true);
 $router->get('/api/sites/{id}', [new SiteController(), 'show'], true);
 $router->post('/api/sites', [new SiteController(), 'store'], true);
+$router->post('/api/sites/{id}/rename', [new SiteController(), 'rename'], true);
 
 $router->post('/api/sites/{id}/scan', [new ScanController(), 'scan'], true);
