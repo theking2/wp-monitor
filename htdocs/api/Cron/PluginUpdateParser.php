@@ -142,8 +142,10 @@ final class PluginUpdateParser
 
     public function extractSiteUrl(string $body): ?string
     {
+        // Trailing punctuation/backslash picked up from surrounding text/line-wrap artifacts
+        // (confirmed real case: a trailing "\" on an otherwise-correct URL) isn't part of the URL.
         if (preg_match('#https?://[^\s<>"\']+#i', $body, $m)) {
-            return rtrim($m[0], '.,;)');
+            return rtrim($m[0], ".,;)\\");
         }
 
         return null;
