@@ -4,9 +4,9 @@ defineProps({
 })
 
 const styles = {
-  ok: 'bg-green-100 text-green-800',
-  tampered: 'bg-red-100 text-red-800',
-  unknown: 'bg-slate-100 text-slate-600',
+  ok: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  tampered: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  unknown: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 }
 </script>
 

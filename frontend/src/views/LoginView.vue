@@ -33,33 +33,33 @@ async function submit() {
 
     <form class="space-y-4" @submit.prevent="submit">
       <div>
-        <label class="block text-sm font-medium text-slate-700" for="username">Username</label>
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300" for="username">Username</label>
         <input
           id="username"
           v-model="username"
           type="text"
           required
-          class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 focus:border-slate-500 focus:outline-none"
+          class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 focus:border-slate-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-400"
         >
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-slate-700" for="password">Password</label>
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300" for="password">Password</label>
         <input
           id="password"
           v-model="password"
           type="password"
           required
-          class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 focus:border-slate-500 focus:outline-none"
+          class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 focus:border-slate-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-400"
         >
       </div>
 
-      <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
+      <p v-if="error" class="text-sm text-red-600 dark:text-red-400">{{ error }}</p>
 
       <button
         type="submit"
         :disabled="loading"
-        class="w-full rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
+        class="w-full rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
       >
         {{ loading ? 'Signing in…' : 'Sign in' }}
       </button>

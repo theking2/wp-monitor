@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (toggle-driven) instead of Tailwind v4's default media-query variant. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @font-face {
   font-family: "Geomanist";
   src: url("/assets/fonts/geomanist-black-webfont.woff2") format("woff2");
