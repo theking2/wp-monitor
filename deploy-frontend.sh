@@ -12,10 +12,16 @@ if [ ! -f "$CONFIG_FILE" ]; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1090
-source "$CONFIG_FILE"
-set +a
+# Deliberately NOT `source`d: that treats the file as shell script, so any password containing
+# a space, $, backtick, quote, etc. either breaks parsing or gets shell-interpreted. Read it as
+# plain KEY=VALUE lines instead — same "value taken literally, no quoting" contract as the app's
+# own .env loader (htdocs/api/bootstrap.php) — so it can't misbehave on real-world passwords.
+while IFS='=' read -r key value || [ -n "$key" ]; do
+  case "$key" in
+    ''|'#'*) continue ;;
+  esac
+  export "$key=$value"
+done < "$CONFIG_FILE"
 
 : "${DEPLOY_HOST:?DEPLOY_HOST is not set in .deploy.env}"
 : "${DEPLOY_USER:?DEPLOY_USER is not set in .deploy.env}"
