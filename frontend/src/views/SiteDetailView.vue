@@ -150,6 +150,26 @@ onMounted(load)
       </div>
 
       <div>
+        <h3 class="font-heading mb-2 text-lg">Outage history</h3>
+        <p v-if="site.outages.length === 0" class="text-sm text-slate-400 dark:text-slate-500">
+          No outages recorded.
+        </p>
+        <ul v-else class="space-y-2">
+          <li
+            v-for="outage in site.outages"
+            :key="outage.id"
+            class="rounded-md border border-violet-200 bg-violet-50 p-3 text-sm dark:border-violet-900 dark:bg-violet-950"
+          >
+            <div class="flex justify-between text-violet-800 dark:text-violet-300">
+              <span>{{ outage.detected_at }}</span>
+              <span>{{ outage.resolved_at ? `resolved ${outage.resolved_at}` : 'ongoing' }}</span>
+            </div>
+            <p class="mt-2 text-violet-700 dark:text-violet-400">{{ outage.error_message }}</p>
+          </li>
+        </ul>
+      </div>
+
+      <div>
         <h3 class="font-heading mb-2 text-lg">Snapshot history</h3>
         <table class="w-full divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
           <thead class="bg-slate-50 dark:bg-slate-900">

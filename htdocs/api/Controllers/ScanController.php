@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Core\Logger;
 use App\Core\Request;
 use App\Core\Response;
+use App\Cron\OutageTracker;
 use App\Cron\ReportMailer;
 use App\Cron\SignatureComparer;
 use App\Cron\SiteScanner;
@@ -32,8 +33,19 @@ final class ScanController
                 'url' => $site['url'],
                 'error' => $e->getMessage(),
             ]);
+            try {
+                (new OutageTracker())->recordFailure($site, $e);
+            } catch (\Throwable $trackerError) {
+                $logger->error('Failed to record outage', ['site_id' => $site['id'], 'error' => $trackerError->getMessage()]);
+            }
             Response::error('Could not fetch site: ' . $e->getMessage(), 502);
             return;
+        }
+
+        try {
+            (new OutageTracker())->recordSuccess($site);
+        } catch (\Throwable $e) {
+            $logger->error('Failed to record recovery', ['site_id' => $site['id'], 'error' => $e->getMessage()]);
         }
 
         $result = (new SignatureComparer())->compareAndStore($site, $content, 'manual');

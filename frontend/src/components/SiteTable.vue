@@ -19,6 +19,9 @@ function rowClass(site) {
   if (site.status === 'tampered') {
     return 'bg-red-50 dark:bg-red-950'
   }
+  if (site.status === 'unreachable') {
+    return 'bg-violet-50 dark:bg-violet-950'
+  }
   if (site.status === 'ok' && site.latest_similarity !== null && site.latest_similarity < MINOR_DIFFERENCE_THRESHOLD) {
     // amber rather than dark:orange-950 — the latter reads too close to the tampered row's
     // dark:red-950 at a glance; amber-900 stays clearly distinct from both blue and red.

@@ -3,6 +3,7 @@
 require __DIR__ . '/../api/bootstrap.php';
 
 use App\Core\Logger;
+use App\Cron\OutageTracker;
 use App\Cron\ReportMailer;
 use App\Cron\SignatureComparer;
 use App\Cron\SiteScanner;
@@ -17,32 +18,48 @@ try {
     $scanner = new SiteScanner();
     $comparer = new SignatureComparer();
     $reportMailer = new ReportMailer();
+    $outageTracker = new OutageTracker();
 
     $sites = Site::all();
     $logger->info('scan_sites run started', ['site_count' => count($sites)]);
 
     foreach ($sites as $site) {
-        $logger->debug('Scanning site', ['site_id' => $site['id'], 'url' => $site['url']]);
-
+        // Whole per-site body in one try/catch — same reasoning as check_mail.php: one site's
+        // problem (fetch failure, a DB hiccup while recording it, ...) must not abort scanning
+        // the rest of the batch.
         try {
-            $content = $scanner->fetch($site['url']);
+            $logger->debug('Scanning site', ['site_id' => $site['id'], 'url' => $site['url']]);
+
+            try {
+                $content = $scanner->fetch($site['url']);
+            } catch (\Throwable $e) {
+                $logger->error('Site fetch failed', [
+                    'site_id' => $site['id'],
+                    'url' => $site['url'],
+                    'error' => $e->getMessage(),
+                ]);
+                $outageTracker->recordFailure($site, $e);
+                fwrite(STDERR, "[{$site['url']}] fetch failed: {$e->getMessage()}\n");
+                continue;
+            }
+
+            $outageTracker->recordSuccess($site);
+
+            $result = $comparer->compareAndStore($site, $content, 'cron');
+
+            if ($result['tampered']) {
+                $reportMailer->sendTamperReport($site, $result);
+                fwrite(STDOUT, "[{$site['url']}] TAMPERED (similarity {$result['similarity']})\n");
+            } else {
+                fwrite(STDOUT, "[{$site['url']}] ok (similarity {$result['similarity']})\n");
+            }
         } catch (\Throwable $e) {
-            $logger->error('Site fetch failed', [
+            $logger->error('Failed to process site, will retry next run', [
                 'site_id' => $site['id'],
                 'url' => $site['url'],
                 'error' => $e->getMessage(),
             ]);
-            fwrite(STDERR, "[{$site['url']}] fetch failed: {$e->getMessage()}\n");
-            continue;
-        }
-
-        $result = $comparer->compareAndStore($site, $content, 'cron');
-
-        if ($result['tampered']) {
-            $reportMailer->sendTamperReport($site, $result);
-            fwrite(STDOUT, "[{$site['url']}] TAMPERED (similarity {$result['similarity']})\n");
-        } else {
-            fwrite(STDOUT, "[{$site['url']}] ok (similarity {$result['similarity']})\n");
+            fwrite(STDERR, "[{$site['url']}] failed: {$e->getMessage()}\n");
         }
     }
 

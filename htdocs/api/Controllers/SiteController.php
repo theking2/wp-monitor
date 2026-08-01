@@ -7,6 +7,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Models\Alert;
 use App\Models\Site;
+use App\Models\SiteOutage;
 use App\Models\Snapshot;
 
 final class SiteController
@@ -26,6 +27,7 @@ final class SiteController
 
         $site['snapshots'] = Snapshot::forSite((int) $params['id']);
         $site['alerts'] = Alert::forSite((int) $params['id']);
+        $site['outages'] = SiteOutage::forSite((int) $params['id']);
 
         Response::json($site);
     }
