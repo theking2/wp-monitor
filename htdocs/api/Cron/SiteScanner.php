@@ -21,12 +21,10 @@ final class SiteScanner
         $html = curl_exec($ch);
         if ($html === false) {
             $error = curl_error($ch);
-            curl_close($ch);
             throw new \RuntimeException($error ?: 'request failed');
         }
 
         $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($status >= 400) {
             throw new \RuntimeException("unexpected HTTP status {$status}");
