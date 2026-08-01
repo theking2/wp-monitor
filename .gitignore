@@ -16,3 +16,4 @@
 # frontend
 /frontend/node_modules/
 /frontend/dist/
+wp-monitor.sqlite
