@@ -1,5 +1,6 @@
 /logs
 .env
+.deploy.env
 *.code-workspace
 /.claude/
 

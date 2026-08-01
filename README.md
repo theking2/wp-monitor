@@ -259,6 +259,24 @@ npm run dev        # local dev server against the API
 npm run build      # outputs to ../htdocs/assets/app
 ```
 
+## Deploying the frontend
+
+`deploy-frontend.sh` builds the SPA and uploads `htdocs/assets/app` to the server via `lftp`
+(`ftp`, `ftps`, or `sftp`). One-time setup: copy `.deploy.env.sample` to `.deploy.env` and fill in
+your host/credentials — same `.env`/`.env_sample` pattern as the app config, and `.deploy.env` is
+gitignored for the same reason.
+
+```
+./deploy-frontend.sh          # prompts for confirmation before uploading
+./deploy-frontend.sh --yes    # skips the prompt, for scripting/CI
+```
+
+It uses `mirror --reverse --delete`, so anything on the remote side no longer present locally gets
+removed — necessary because Vite hashes bundle filenames on every build, otherwise old JS/CSS
+files pile up forever. This is exactly why `DEPLOY_REMOTE_PATH` must point specifically at the
+built-app folder (e.g. `/httpdocs/assets/app`) and never at the whole webroot. Leave
+`DEPLOY_PASSWORD` blank with `DEPLOY_PROTOCOL=sftp` to use SSH key/agent auth instead of a password.
+
 ## Fonts
 
 - Headings: Geomanist (`htdocs/assets/fonts/geomanist-black-webfont.woff2`, already present).
