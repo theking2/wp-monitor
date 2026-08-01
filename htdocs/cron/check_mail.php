@@ -27,10 +27,9 @@ try {
     $logger->info('check_mail run started', ['unseen_count' => count($messages)]);
 
     foreach ($messages as $message) {
-        // Everything for this one message lives in this try/catch — deliberately including the
-        // "already processed"/size checks and their markSeen() calls, not just the decode step,
-        // so literally nothing about a single message (bad headers, a dropped IMAP connection
-        // mid-batch, a failed forward, ...) can abort processing of the rest of the batch.
+        // Everything for this one message lives in this try/catch — so literally nothing about 
+        // a single message (bad headers, a dropped IMAP connection mid-batch, a failed forward, ...)
+        // can abort processing of the rest of the batch.
         try {
             $messageId = (string) $message->getMessageId();
             if ($messageId === '') {
@@ -45,8 +44,6 @@ try {
 
             $size = $message->getSize();
             if ($size > $maxMessageSize) {
-                // Never attempt to decode this — that's exactly what exhausts memory. Mark it
-                // handled so it doesn't crash (and get retried forever) on every future run.
                 $logger->warning('Skipping oversized message without decoding it', [
                     'message_id' => $messageId,
                     'size' => $size,
@@ -66,9 +63,7 @@ try {
                 $siteUrl = $parser->extractSiteUrl($body);
 
                 if ($siteUrl !== null) {
-                    // This is the actual "sites get discovered from mail" mechanism — without
-                    // this, a plugin-update email could be parsed perfectly and still never
-                    // show up in the monitored sites list.
+                    // This is the actual "sites get discovered from mail" mechanism
                     $siteName = $parser->extractSiteName($subject) ?? $siteUrl;
                     $site = Site::firstOrCreateByUrl(rtrim($siteUrl, '/'), $siteName);
                     $logger->debug('Site discovered/matched from mail', ['site_id' => $site['id'], 'url' => $site['url']]);
@@ -110,10 +105,6 @@ try {
 
             $reader->markSeen($message);
         } catch (\Throwable $e) {
-            // Don't let one bad message (malformed MIME, a failed SMTP forward, a dropped
-            // connection, ...) abort the rest of the batch. Left unseen deliberately, so it's
-            // retried next run — except the oversized case above, which is marked seen before
-            // any risky decode is attempted, precisely so it can't crash every run forever.
             $logger->error('Failed to process message, will retry next run', [
                 'uid' => $message->getUid(),
                 'error' => $e->getMessage(),
