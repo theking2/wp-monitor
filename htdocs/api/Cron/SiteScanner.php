@@ -13,7 +13,7 @@ final class SiteScanner
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 20,
+            CURLOPT_TIMEOUT => getenv('SITE_SCANNER_TIMEOUT', 10),
             CURLOPT_USERAGENT => 'wp-monitor/1.0 (+site integrity check)',
             CURLOPT_SSL_VERIFYPEER => true,
         ]);
