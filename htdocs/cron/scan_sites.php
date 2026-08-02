@@ -39,7 +39,7 @@ try {
                     'error' => $e->getMessage(),
                 ]);
                 $outageTracker->recordFailure($site, $e);
-                fwrite(STDERR, "[{$site['url']}] fetch failed: {$e->getMessage()}\n");
+                fwrite(STDOUT, "[{$site['url']}] fetch failed: {$e->getMessage()}\n");
                 continue;
             }
 
@@ -59,7 +59,7 @@ try {
                 'url' => $site['url'],
                 'error' => $e->getMessage(),
             ]);
-            fwrite(STDERR, "[{$site['url']}] failed: {$e->getMessage()}\n");
+            fwrite(STDOUT, "[{$site['url']}] failed: {$e->getMessage()}\n");
         }
     }
 
