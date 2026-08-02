@@ -15,28 +15,28 @@ final class Request
         $this->method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
-        $path = parse_url($uri, PHP_URL_PATH) ?: '/';
-        $this->path = $path === '/' ? '/' : rtrim($path, '/');
+        $path = \parse_url($uri, \PHP_URL_PATH) ?: '/';
+        $this->path = $path === '/' ? '/' : \rtrim($path, '/');
 
-        parse_str($_SERVER['QUERY_STRING'] ?? '', $this->query);
+        \parse_str($_SERVER['QUERY_STRING'] ?? '', $this->query);
 
-        $this->headers = function_exists('getallheaders') ? (getallheaders() ?: []) : [];
+        $this->headers = \function_exists('getallheaders') ? (getallheaders() ?: []) : [];
         $this->body = $this->parseBody();
     }
 
     private function parseBody(): array
     {
-        $raw = file_get_contents('php://input');
+        $raw = \file_get_contents('php://input');
         if ($raw === false || $raw === '') {
             return [];
         }
 
         $contentType = $this->headers['Content-Type'] ?? $this->headers['content-type'] ?? '';
-        if (str_contains($contentType, 'application/json')) {
-            return json_decode($raw, true) ?: [];
+        if (\str_contains($contentType, 'application/json')) {
+            return \json_decode($raw, true) ?: [];
         }
 
-        parse_str($raw, $parsed);
+        \parse_str($raw, $parsed);
         return $parsed;
     }
 
@@ -51,7 +51,7 @@ final class Request
             ?? $_SERVER['REDIRECT_REDIRECT_HTTP_AUTHORIZATION']
             ?? '';
 
-        if (preg_match('/Bearer\s+(\S+)/i', $auth, $m)) {
+        if (\preg_match('/Bearer\s+(\S+)/i', $auth, $m)) {
             return $m[1];
         }
 

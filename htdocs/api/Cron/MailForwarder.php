@@ -9,7 +9,7 @@ final class MailForwarder extends Mailer
 {
     public function forward(ImapMessage $message): void
     {
-        $to = getenv('FORWARD_TO_EMAIL') ?: '';
+        $to = \getenv('FORWARD_TO_EMAIL') ?: '';
         if ($to === '') {
             return;
         }
@@ -24,7 +24,7 @@ final class MailForwarder extends Mailer
         if ($html !== '') {
             $mail->isHTML(true);
             $mail->Body = $html;
-            $mail->AltBody = $message->getTextBody() ?: strip_tags($html);
+            $mail->AltBody = $message->getTextBody() ?: \strip_tags($html);
         } else {
             $mail->isHTML(false);
             $mail->Body = $message->getTextBody() ?: '(no body)';
@@ -35,7 +35,7 @@ final class MailForwarder extends Mailer
         Logger::get()->info('Forward accepted by SMTP server', [
             'to' => $to,
             'subject' => $subject,
-            'smtp_response' => trim($mail->getSMTPInstance()->getLastReply()),
+            'smtp_response' => \trim($mail->getSMTPInstance()->getLastReply()),
         ]);
     }
 }

@@ -25,14 +25,14 @@ abstract class Mailer
         $mail = new PHPMailer(true);
         $mail->CharSet = PHPMailer::CHARSET_UTF8;
         $mail->isSMTP();
-        $mail->Host = getenv('SMTP_HOST') ?: '';
-        $mail->Port = (int) (getenv('SMTP_PORT') ?: 587);
+        $mail->Host = \getenv('SMTP_HOST') ?: '';
+        $mail->Port = (int) (\getenv('SMTP_PORT') ?: 587);
         $mail->SMTPAuth = true;
-        $mail->Username = getenv('SMTP_USER') ?: '';
-        $mail->Password = getenv('SMTP_PASSWORD') ?: '';
+        $mail->Username = \getenv('SMTP_USER') ?: '';
+        $mail->Password = \getenv('SMTP_PASSWORD') ?: '';
         // Forcing STARTTLS regardless of port was a real mismatch risk (e.g. port 465 is
         // implicit TLS, not STARTTLS) — make it match whatever the account actually needs.
-        $mail->SMTPSecure = match (strtolower(getenv('SMTP_ENCRYPTION') ?: 'tls')) {
+        $mail->SMTPSecure = match (\strtolower(\getenv('SMTP_ENCRYPTION') ?: 'tls')) {
             'ssl' => PHPMailer::ENCRYPTION_SMTPS,
             'none', '' => '',
             default => PHPMailer::ENCRYPTION_STARTTLS,
@@ -41,8 +41,8 @@ abstract class Mailer
         // PHPMailer's own default is 300s — an unreachable/firewalled/slow SMTP server would
         // otherwise block the whole cron run for up to 5 minutes on a single email before
         // failing. Fail fast instead; the caller's try/catch already handles a failed send.
-        $mail->Timeout = (int) (getenv('SMTP_TIMEOUT') ?: 15);
-        $mail->setFrom(getenv('SMTP_USER') ?: 'wp-monitor@localhost', 'wp-monitor');
+        $mail->Timeout = (int) (\getenv('SMTP_TIMEOUT') ?: 15);
+        $mail->setFrom(\getenv('SMTP_USER') ?: 'wp-monitor@localhost', 'wp-monitor');
 
         $this->mailer = $mail;
 

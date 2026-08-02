@@ -34,10 +34,10 @@ final class SiteController
 
     public function store(Request $request): void
     {
-        $url = trim((string) ($request->body['url'] ?? ''));
-        $name = trim((string) ($request->body['name'] ?? ''));
+        $url = \trim((string) ($request->body['url'] ?? ''));
+        $name = \trim((string) ($request->body['name'] ?? ''));
 
-        if ($url === '' || filter_var($url, FILTER_VALIDATE_URL) === false) {
+        if ($url === '' || \filter_var($url, \FILTER_VALIDATE_URL) === false) {
             Response::error('A valid url is required', 422);
             return;
         }
@@ -61,7 +61,7 @@ final class SiteController
             return;
         }
 
-        $name = trim((string) ($request->body['name'] ?? ''));
+        $name = \trim((string) ($request->body['name'] ?? ''));
         if ($name === '') {
             Response::error('Name cannot be empty', 422);
             return;

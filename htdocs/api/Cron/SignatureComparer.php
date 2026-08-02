@@ -13,14 +13,14 @@ final class SignatureComparer
 
     public function __construct(?float $threshold = null)
     {
-        $this->threshold = $threshold ?? (float) (getenv('SIGNATURE_SIMILARITY_THRESHOLD') ?: 0.97);
+        $this->threshold = $threshold ?? (float) (\getenv('SIGNATURE_SIMILARITY_THRESHOLD') ?: 0.97);
     }
 
     /** @param array<string, mixed> $site @return array<string, mixed> */
     public function compareAndStore(array $site, string $normalizedContent, string $triggeredBy = 'cron'): array
     {
         $logger = Logger::get();
-        $hash = hash('sha256', $normalizedContent);
+        $hash = \hash('sha256', $normalizedContent);
         $signature = Snapshot::latestSignature($site['id']);
 
         if ($signature === null) {
@@ -38,7 +38,7 @@ final class SignatureComparer
             ];
         }
 
-        if (hash_equals($signature['content_hash'], $hash)) {
+        if (\hash_equals($signature['content_hash'], $hash)) {
             $snapshot = Snapshot::create($site['id'], $hash, $normalizedContent, 1.0, false, $triggeredBy);
             Site::updateStatus($site['id'], 'ok');
             $logger->debug('Content unchanged', ['site_id' => $site['id']]);
@@ -52,8 +52,8 @@ final class SignatureComparer
             ];
         }
 
-        similar_text($signature['normalized_content'], $normalizedContent, $percent);
-        $similarity = round($percent / 100, 4);
+        \similar_text($signature['normalized_content'], $normalizedContent, $percent);
+        $similarity = \round($percent / 100, 4);
         $tampered = $similarity < $this->threshold;
 
         $snapshot = Snapshot::create($site['id'], $hash, $normalizedContent, $similarity, false, $triggeredBy);
@@ -100,20 +100,20 @@ final class SignatureComparer
 
     private function summarizeDiff(string $before, string $after, int $maxLen = 600): string
     {
-        $beforeWords = preg_split('/\s+/', $before) ?: [];
-        $afterWords = preg_split('/\s+/', $after) ?: [];
+        $beforeWords = \preg_split('/\s+/', $before) ?: [];
+        $afterWords = \preg_split('/\s+/', $after) ?: [];
 
-        $added = array_slice(array_values(array_diff($afterWords, $beforeWords)), 0, 40);
-        $removed = array_slice(array_values(array_diff($beforeWords, $afterWords)), 0, 40);
+        $added = \array_slice(\array_values(\array_diff($afterWords, $beforeWords)), 0, 40);
+        $removed = \array_slice(\array_values(\array_diff($beforeWords, $afterWords)), 0, 40);
 
         $summary = '';
         if ($removed !== []) {
-            $summary .= '- ' . implode(' ', $removed) . "\n";
+            $summary .= '- ' . \implode(' ', $removed) . "\n";
         }
         if ($added !== []) {
-            $summary .= '+ ' . implode(' ', $added);
+            $summary .= '+ ' . \implode(' ', $added);
         }
 
-        return mb_substr(trim($summary), 0, $maxLen);
+        return \mb_substr(\trim($summary), 0, $maxLen);
     }
 }

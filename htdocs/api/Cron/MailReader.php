@@ -24,15 +24,15 @@ final class MailReader
      */
     public function fetchUnseen(): array
     {
-        $mailbox = getenv('IMAP_MAILBOX') ?: 'INBOX';
-        Logger::get()->debug('Connecting to IMAP mailbox', ['host' => getenv('IMAP_HOST') ?: '', 'mailbox' => $mailbox]);
+        $mailbox = \getenv('IMAP_MAILBOX') ?: 'INBOX';
+        Logger::get()->debug('Connecting to IMAP mailbox', ['host' => \getenv('IMAP_HOST') ?: '', 'mailbox' => $mailbox]);
 
         $this->client->connect(
-            getenv('IMAP_HOST') ?: '',
-            (int) (getenv('IMAP_PORT') ?: 993),
-            getenv('IMAP_ENCRYPTION') ?: 'ssl'
+            \getenv('IMAP_HOST') ?: '',
+            (int) (\getenv('IMAP_PORT') ?: 993),
+            \getenv('IMAP_ENCRYPTION') ?: 'ssl'
         );
-        $this->client->login(getenv('IMAP_USER') ?: '', getenv('IMAP_PASSWORD') ?: '');
+        $this->client->login(\getenv('IMAP_USER') ?: '', \getenv('IMAP_PASSWORD') ?: '');
         $this->client->selectMailbox($mailbox);
 
         $messages = [];
@@ -41,7 +41,7 @@ final class MailReader
             $messages[] = new ImapMessage($uid, $info['size'], $info['header']);
         }
 
-        Logger::get()->debug('IMAP fetch complete', ['unseen_count' => count($messages)]);
+        Logger::get()->debug('IMAP fetch complete', ['unseen_count' => \count($messages)]);
 
         return $messages;
     }

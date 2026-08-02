@@ -11,7 +11,7 @@ final class JwtService
 
     public static function issue(string $username, int $ttlSeconds = 28800): string
     {
-        $now = time();
+        $now = \time();
 
         $payload = [
             'sub' => $username,
@@ -35,7 +35,7 @@ final class JwtService
 
     private static function secret(): string
     {
-        $secret = getenv('JWT_SECRET') ?: '';
+        $secret = \getenv('JWT_SECRET') ?: '';
         if ($secret === '') {
             throw new \RuntimeException('JWT_SECRET is not configured');
         }
