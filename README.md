@@ -6,15 +6,22 @@ keeps an eye on a mailbox for WordPress plugin/version update notifications, for
 ## What it does
 
 1. A cron job periodically reads a known IMAP mailbox.
-2. Emails recognized as WordPress plugin/version update notifications are parsed and recorded.
+2. Emails recognized as WordPress plugin/version update notifications are parsed and recorded; the
+   site they mention is auto-registered for monitoring if it isn't known yet.
 3. All other emails are forwarded unchanged to a configurable address.
-4. The same cron run (partially) scrapes each known site's front page, compares the extracted content
-   against a stored "signature", and creates a signature if none exists yet.
-5. Discrepancies between stored and actual content are flagged as potential tampering — tolerant of
-   minor/expected changes (dates, view counters, rotating banners, etc.) — with every check kept as
-   history. A tamper flag also sends a report email to the configured address.
-6. A Vue3 SPA lists all discovered sites with their current status and lets a user trigger a manual
-   check of a page on demand, showing the result inline.
+4. A separate cron job fetches every known site's front page — concurrently, capped by
+   `SCAN_CONCURRENCY` — and compares the extracted content against a stored "signature", creating one
+   if none exists yet. Unreachable sites are flagged and get a report email; recovery sends another.
+5. Discrepancies between stored and actual content are compared as a similarity score, tolerant of
+   minor/expected changes (dates, view counters, rotating banners, etc.):
+   - Similarity below `SIGNATURE_SIMILARITY_THRESHOLD` is flagged as potential tampering — a report
+     email is sent and the discrepancy is kept as an alert.
+   - Anything else that isn't a byte-for-byte match is accepted as the new signature, but if it's below
+     a "notable" cutoff it still sends a lightweight "content updated" report — so a real edit is never
+     silently absorbed just because it wasn't big enough to count as tampering.
+   - Every check is kept as history regardless of outcome.
+6. A Vue3 SPA lists all discovered sites with their current status (incl. unreachable), lets a user
+   rename a site or trigger a manual check on demand, and shows per-site alert/outage/snapshot history.
 7. A small PHP JSON API (single-admin JWT auth, model/controller layout) backs the SPA and is also
    used by the cron scripts to read/write the database.
 8. Storage is a single SQLite file — no database server required.
@@ -32,6 +39,10 @@ keeps an eye on a mailbox for WordPress plugin/version update notifications, for
 - **Frontend**: Vue3 + Vite + vue-router + Pinia + Tailwind, built and copied into `htdocs/assets/app`.
 - **Database**: SQLite only — no database server/container. The `pdo_sqlite` PHP extension is enabled
   in the `Dockerfile`; there is no `db` service in `compose.yaml`.
+- **Scanning**: sites are fetched concurrently (`SiteScanner::fetchMany()`, `curl_multi`, capped by
+  `SCAN_CONCURRENCY`) rather than one at a time, so `scan_sites.php`'s runtime doesn't scale linearly
+  with the number of monitored sites — the dominant per-site cost is network wait, not CPU, so this is
+  a straightforward win over the alternative of splitting the site list across more/batched cron runs.
 
 ## Project layout
 
@@ -39,6 +50,9 @@ keeps an eye on a mailbox for WordPress plugin/version update notifications, for
 wp-monitor
 ├── .env                          # docker + app configuration (see below), not committed
 ├── .env_sample
+├── .deploy.env                    # frontend deploy credentials (see below), not committed
+├── .deploy.env.sample
+├── deploy-frontend.sh              # builds + uploads the SPA (see "Deploying the frontend")
 ├── compose.yaml                  # webserver only, PHP + sqlite
 ├── Dockerfile
 ├── apache-vhost.conf              # AllowOverride for htdocs/.htaccess (front-controller rewrite)
@@ -60,14 +74,16 @@ wp-monitor
 │       │   ├── auth.js
 │       │   └── sites.js
 │       ├── api/client.js          # fetch wrapper, attaches JWT bearer token
+│       ├── utils/
+│       │   └── relativeTime.js    # "last checked" / date formatting helpers
 │       ├── components/
-│       │   ├── SiteTable.vue
+│       │   ├── SiteTable.vue        # site list, status colors incl. minor-drift/unreachable highlighting
 │       │   ├── SiteStatusBadge.vue
 │       │   └── ManualScanPanel.vue
 │       └── views/
 │           ├── LoginView.vue
 │           ├── SiteListView.vue
-│           └── SiteDetailView.vue
+│           └── SiteDetailView.vue   # rename, alert/outage/snapshot history
 └── htdocs/                        # webserver root (`localhost:9080/`)
     ├── index.php                  # front controller: bootstrap + CORS + route dispatch
     ├── .htaccess                  # rewrites all non-file requests to index.php
@@ -76,7 +92,7 @@ wp-monitor
     ├── assets/
     │   ├── fonts/
     │   │   ├── geomanist-black-webfont.woff2   # heading font
-    │   │   └── geologica/...                    # body font (to add)
+    │   │   └── geologica/geologica-variable.woff2   # body font
     │   └── app/                   # built SPA output (`vite build`), gitignored
     ├── api/
     │   ├── bootstrap.php          # autoload + .env loading
@@ -93,12 +109,13 @@ wp-monitor
     │   │       └── AuthMiddleware.php
     │   ├── Controllers/           # JSON API, model/controller layout
     │   │   ├── AuthController.php     # POST /api/login
-    │   │   ├── SiteController.php     # GET/POST /api/sites, GET /api/sites/{id}
+    │   │   ├── SiteController.php     # GET/POST /api/sites, GET /api/sites/{id}, rename
     │   │   └── ScanController.php     # POST /api/sites/{id}/scan (manual check)
     │   ├── Models/
     │   │   ├── Site.php
     │   │   ├── Snapshot.php
     │   │   ├── Alert.php
+    │   │   ├── SiteOutage.php     # open/resolved unreachability episodes
     │   │   ├── PluginUpdate.php
     │   │   └── ProcessedEmail.php
     │   └── Cron/                  # used by both the API (manual scan) and cron/*.php
@@ -109,12 +126,14 @@ wp-monitor
     │       ├── PluginUpdateParser.php # recognizes/parses WP plugin update mails
     │       ├── Mailer.php              # shared PHPMailer/SMTP setup
     │       ├── MailForwarder.php      # forwards non-plugin-update mail
-    │       ├── ReportMailer.php       # sends tamper alert report emails
-    │       ├── SiteScanner.php        # fetches + extracts relevant front-page content
+    │       ├── ReportMailer.php       # sends tamper/outage/recovery/drift report emails
+    │       ├── OutageTracker.php      # opens/resolves site_outages, avoids duplicate alerts
+    │       ├── SiteScanner.php        # concurrent fetch (curl_multi) + extracts relevant content
     │       └── SignatureComparer.php  # normalizes/diffs content vs stored signature
     ├── cron/                      # entry points invoked by the host crontab
     │   ├── check_mail.php
-    │   └── scan_sites.php
+    │   ├── scan_sites.php
+    │   └── backfill_sites_from_plugin_updates.php   # one-off: seed sites from existing plugin_updates rows
     └── database/
         ├── wp-monitor.sqlite      # SQLite database file (gitignored)
         └── migrations/
@@ -122,17 +141,20 @@ wp-monitor
             ├── 002_create_snapshots.sql
             ├── 003_create_alerts.sql
             ├── 004_create_plugin_updates.sql
-            └── 005_create_processed_emails.sql
+            ├── 005_create_processed_emails.sql
+            ├── 006_add_status_to_plugin_updates.sql
+            └── 007_create_site_outages.sql
 ```
 
 ### Data model (SQLite)
 
 Table | Purpose
 -|-
-`sites` | Monitored site: url, name, current status (`ok` / `tampered` / `unknown`), timestamps.
+`sites` | Monitored site: url, name, current status (`ok` / `tampered` / `unreachable` / `unknown`), timestamps.
 `snapshots` | Every scan's normalized content + hash for a site — the signature history.
 `alerts` | A flagged discrepancy: which snapshot triggered it, diff summary, open/resolved, timestamps.
-`plugin_updates` | Parsed WP plugin/version update notifications extracted from mail.
+`site_outages` | An unreachability episode for a site: error message, detected/resolved timestamps.
+`plugin_updates` | Parsed WP plugin/version update notifications extracted from mail, incl. success/failed status.
 `processed_emails` | IMAP UID/Message-ID of already-handled mails, so `check_mail.php` is idempotent across runs.
 
 ## Configuration (`.env`)
@@ -161,7 +183,7 @@ SMTP_ENCRYPTION=tls
 SMTP_USER=
 SMTP_PASSWORD=
 FORWARD_TO_EMAIL=          # non-plugin-update mail is forwarded here
-REPORT_TO_EMAIL=           # tamper alert reports are sent here
+REPORT_TO_EMAIL=           # tamper/outage/recovery/drift report emails are sent here
 
 # auth
 JWT_SECRET=                # >= 32 random bytes, e.g. `openssl rand -base64 32` (firebase/php-jwt rejects shorter keys)
@@ -182,6 +204,11 @@ LOG_ROTATE_COMPRESS=false
 # cron safety limits
 CRON_MEMORY_LIMIT=512M
 IMAP_MAX_MESSAGE_SIZE=20971520
+
+# scanner settings
+SITE_SCANNER_TIMEOUT=10           # per-request curl timeout, seconds
+SCAN_CONCURRENCY=10               # sites fetched at once by scan_sites.php (curl_multi)
+SIGNATURE_SIMILARITY_THRESHOLD=0.97   # below this similarity, a change is flagged as tampering
 ```
 
 > \[!IMPORTANT]
@@ -279,9 +306,8 @@ built-app folder (e.g. `/httpdocs/assets/app`) and never at the whole webroot. L
 
 ## Fonts
 
-- Headings: Geomanist (`htdocs/assets/fonts/geomanist-black-webfont.woff2`, already present).
-- Body text: Geologica — not yet added, download the webfont and place it alongside under
-  `htdocs/assets/fonts/`.
+- Headings: Geomanist (`htdocs/assets/fonts/geomanist-black-webfont.woff2`).
+- Body text: Geologica (`htdocs/assets/fonts/geologica/geologica-variable.woff2`).
 
 ---
 
