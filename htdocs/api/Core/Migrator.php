@@ -20,7 +20,7 @@ final class Migrator
 
         foreach ($files as $file) {
             $name = basename($file);
-            if (in_array($name, $applied, true)) {
+            if (\in_array($name, $applied, true)) {
                 continue;
             }
 
