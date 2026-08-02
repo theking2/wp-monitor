@@ -54,8 +54,16 @@ final class ScanController
             try {
                 (new ReportMailer())->sendTamperReport($site, $result);
             } catch (\Throwable $e) {
-                // a failed report email shouldn't turn a successful manual scan into an error response
                 $logger->warning('Tamper report email failed to send', [
+                    'site_id' => $site['id'],
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } elseif ($result['drift']) {
+            try {
+                (new ReportMailer())->sendDriftReport($site, $result);
+            } catch (\Throwable $e) {
+                $logger->warning('Drift report email failed to send', [
                     'site_id' => $site['id'],
                     'error' => $e->getMessage(),
                 ]);

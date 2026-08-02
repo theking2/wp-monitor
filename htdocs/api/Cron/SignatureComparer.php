@@ -9,6 +9,8 @@ use App\Models\Snapshot;
 
 final class SignatureComparer
 {
+    private const MINOR_DIFFERENCE_THRESHOLD = 0.999;
+
     private float $threshold;
 
     public function __construct(?float $threshold = null)
@@ -32,6 +34,7 @@ final class SignatureComparer
                 'site_id' => $site['id'],
                 'status' => 'ok',
                 'tampered' => false,
+                'drift' => false,
                 'first_signature' => true,
                 'similarity' => 1.0,
                 'snapshot_id' => $snapshot['id'],
@@ -47,6 +50,7 @@ final class SignatureComparer
                 'site_id' => $site['id'],
                 'status' => 'ok',
                 'tampered' => false,
+                'drift' => false,
                 'similarity' => 1.0,
                 'snapshot_id' => $snapshot['id'],
             ];
@@ -55,12 +59,11 @@ final class SignatureComparer
         \similar_text($signature['normalized_content'], $normalizedContent, $percent);
         $similarity = \round($percent / 100, 4);
         $tampered = $similarity < $this->threshold;
+        $diffSummary = $this->summarizeDiff($signature['normalized_content'], $normalizedContent);
 
         $snapshot = Snapshot::create($site['id'], $hash, $normalizedContent, $similarity, false, $triggeredBy);
 
         if (!$tampered) {
-            // Within tolerance: treat the drift as legitimate and roll it forward as the new
-            // accepted signature, so genuine small edits don't keep re-triggering alerts.
             Snapshot::promoteToSignature($snapshot['id']);
             Site::updateStatus($site['id'], 'ok');
             $logger->info('Content drift within tolerance, signature updated', [
@@ -72,12 +75,13 @@ final class SignatureComparer
                 'site_id' => $site['id'],
                 'status' => 'ok',
                 'tampered' => false,
+                'drift' => $similarity < self::MINOR_DIFFERENCE_THRESHOLD,
                 'similarity' => $similarity,
                 'snapshot_id' => $snapshot['id'],
+                'diff_summary' => $diffSummary,
             ];
         }
 
-        $diffSummary = $this->summarizeDiff($signature['normalized_content'], $normalizedContent);
         Site::updateStatus($site['id'], 'tampered');
         $alert = Alert::create($site['id'], $snapshot['id'], $similarity, $diffSummary);
         $logger->warning('Possible tampering detected', [
@@ -91,6 +95,7 @@ final class SignatureComparer
             'site_id' => $site['id'],
             'status' => 'tampered',
             'tampered' => true,
+            'drift' => false,
             'similarity' => $similarity,
             'snapshot_id' => $snapshot['id'],
             'alert_id' => $alert['id'],

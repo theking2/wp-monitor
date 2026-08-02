@@ -35,6 +35,35 @@ final class ReportMailer extends Mailer
         ]);
     }
 
+    /** @param array<string, mixed> $site @param array<string, mixed> $result */
+    public function sendDriftReport(array $site, array $result): void
+    {
+        $to = \getenv('REPORT_TO_EMAIL') ?: '';
+        if ($to === '') {
+            return;
+        }
+
+        $mail = $this->newMailer();
+        $mail->addAddress($to);
+        $mail->Subject = "[wp-monitor] Content updated: {$site['name']}";
+        $mail->isHTML(false);
+        $mail->Body = \sprintf(
+            "Site: %s (%s)\nSimilarity to previous signature: %.2f%%\nThis was within tolerance and has been accepted as the new signature.\n\nDiff summary:\n%s\n",
+            $site['name'],
+            $site['url'],
+            $result['similarity'] * 100,
+            $result['diff_summary'] ?? '(none)'
+        );
+
+        Logger::get()->info('Sending drift report email', ['site_id' => $site['id'], 'to' => $to]);
+        $mail->send();
+        Logger::get()->info('Drift report accepted by SMTP server', [
+            'site_id' => $site['id'],
+            'to' => $to,
+            'smtp_response' => \trim($mail->getSMTPInstance()->getLastReply()),
+        ]);
+    }
+
     /** @param array<string, mixed> $site */
     public function sendOutageReport(array $site, string $errorMessage): void
     {
