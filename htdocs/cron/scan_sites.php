@@ -54,6 +54,9 @@ try {
             if ($result['tampered']) {
                 $reportMailer->sendTamperReport($site, $result);
                 fwrite(STDOUT, "[{$site['url']}] TAMPERED (similarity {$result['similarity']})\n");
+            } elseif ($result['drift']) {
+                $reportMailer->sendDriftReport($site, $result);
+                fwrite(STDOUT, "[{$site['url']}] ok, drift accepted (similarity {$result['similarity']})\n");
             } else {
                 fwrite(STDOUT, "[{$site['url']}] ok (similarity {$result['similarity']})\n");
             }
