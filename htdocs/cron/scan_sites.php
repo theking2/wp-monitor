@@ -23,6 +23,9 @@ try {
     $sites = Site::all();
     $logger->info('scan_sites run started', ['site_count' => count($sites)]);
 
+    $concurrency = (int) (getenv('SCAN_CONCURRENCY') ?: 10);
+    $fetchResults = $scanner->fetchMany(array_column($sites, 'url'), $concurrency);
+
     foreach ($sites as $site) {
         // Whole per-site body in one try/catch — same reasoning as check_mail.php: one site's
         // problem (fetch failure, a DB hiccup while recording it, ...) must not abort scanning
@@ -30,19 +33,20 @@ try {
         try {
             $logger->debug('Scanning site', ['site_id' => $site['id'], 'url' => $site['url']]);
 
-            try {
-                $content = $scanner->fetch($site['url']);
-            } catch (\Throwable $e) {
+            $fetchResult = $fetchResults[$site['url']] ?? ['content' => null, 'error' => 'no fetch result'];
+
+            if ($fetchResult['error'] !== null) {
                 $logger->error('Site fetch failed', [
                     'site_id' => $site['id'],
                     'url' => $site['url'],
-                    'error' => $e->getMessage(),
+                    'error' => $fetchResult['error'],
                 ]);
-                $outageTracker->recordFailure($site, $e);
-                fwrite(STDOUT, "[{$site['url']}] fetch failed: {$e->getMessage()}\n");
+                $outageTracker->recordFailure($site, new \RuntimeException($fetchResult['error']));
+                fwrite(STDOUT, "[{$site['url']}] fetch failed: {$fetchResult['error']}\n");
                 continue;
             }
 
+            $content = $fetchResult['content'];
             $outageTracker->recordSuccess($site);
 
             $result = $comparer->compareAndStore($site, $content, 'cron');
