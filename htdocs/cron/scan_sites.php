@@ -9,7 +9,7 @@ use App\Cron\SignatureComparer;
 use App\Cron\SiteScanner;
 use App\Models\Site;
 
-// A very large page could similarly be memory-heavy to parse; same headroom as check_mail.php.
+// A very large page could be memory-heavy to parse; same headroom as check_mail.php.
 ini_set('memory_limit', getenv('CRON_MEMORY_LIMIT') ?: '512M');
 
 $logger = Logger::get();
