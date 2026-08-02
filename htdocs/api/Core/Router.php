@@ -51,10 +51,10 @@ final class Router
     /** @return array<string, string>|null */
     private function match(string $pattern, string $path): ?array
     {
-        $regex = preg_replace('#\{(\w+)\}#', '(?P<$1>[^/]+)', $pattern);
+        $regex = \preg_replace('#\{(\w+)\}#', '(?P<$1>[^/]+)', $pattern);
 
-        if (preg_match('#^' . $regex . '$#', $path, $m)) {
-            return array_filter($m, static fn($key) => !is_int($key), ARRAY_FILTER_USE_KEY);
+        if (\preg_match('#^' . $regex . '$#', $path, $m)) {
+            return \array_filter($m, static fn($key) => !\is_int($key), \ARRAY_FILTER_USE_KEY);
         }
 
         return null;

@@ -41,7 +41,7 @@ final class ImapMessage
 
     public function getMessageId(): string
     {
-        return trim($this->headers['message-id'] ?? '');
+        return \trim($this->headers['message-id'] ?? '');
     }
 
     public function getSubject(): string
@@ -93,7 +93,7 @@ final class ImapMessage
             return;
         }
 
-        if (preg_match('/boundary="?([^";]+)"?/i', $contentType, $m)) {
+        if (\preg_match('/boundary="?([^";]+)"?/i', $contentType, $m)) {
             foreach (self::splitByBoundary($body, $m[1]) as $part) {
                 [$partHeaderBlock, $partBody] = self::splitHeaderAndBody($part);
                 $partHeaders = self::parseHeaders($partHeaderBlock);
@@ -117,11 +117,11 @@ final class ImapMessage
             self::extractCharset($contentType)
         );
 
-        if ($this->textBody === null && stripos($contentType, 'text/plain') !== false) {
+        if ($this->textBody === null && \stripos($contentType, 'text/plain') !== false) {
             $this->textBody = $decoded;
-        } elseif ($this->htmlBody === null && stripos($contentType, 'text/html') !== false) {
+        } elseif ($this->htmlBody === null && \stripos($contentType, 'text/html') !== false) {
             $this->htmlBody = $decoded;
-        } elseif ($this->textBody === null && $this->htmlBody === null && stripos($contentType, 'text/') === 0) {
+        } elseif ($this->textBody === null && $this->htmlBody === null && \stripos($contentType, 'text/') === 0) {
             // No Content-Type at all is technically "text/plain us-ascii" per RFC 2045
             $this->textBody = $decoded;
         }
@@ -130,12 +130,12 @@ final class ImapMessage
     /** @return array{0: string, 1: string} */
     private static function splitHeaderAndBody(string $raw): array
     {
-        $raw = ltrim($raw, "\r\n");
+        $raw = \ltrim($raw, "\r\n");
 
-        $pos = strpos($raw, "\r\n\r\n");
+        $pos = \strpos($raw, "\r\n\r\n");
         $sepLength = 4;
         if ($pos === false) {
-            $pos = strpos($raw, "\n\n");
+            $pos = \strpos($raw, "\n\n");
             $sepLength = 2;
         }
 
@@ -143,24 +143,24 @@ final class ImapMessage
             return [$raw, ''];
         }
 
-        return [substr($raw, 0, $pos), substr($raw, $pos + $sepLength)];
+        return [\substr($raw, 0, $pos), \substr($raw, $pos + $sepLength)];
     }
 
     /** @return array<string, string> */
     private static function parseHeaders(string $block): array
     {
-        $block = preg_replace("/\r?\n[ \t]+/", ' ', $block) ?? $block; // unfold continuation lines
+        $block = \preg_replace("/\r?\n[ \t]+/", ' ', $block) ?? $block; // unfold continuation lines
 
         $headers = [];
-        foreach (preg_split('/\r?\n/', $block) ?: [] as $line) {
-            if (!str_contains($line, ':')) {
+        foreach (\preg_split('/\r?\n/', $block) ?: [] as $line) {
+            if (!\str_contains($line, ':')) {
                 continue;
             }
 
-            [$name, $value] = explode(':', $line, 2);
-            $key = strtolower(trim($name));
+            [$name, $value] = \explode(':', $line, 2);
+            $key = \strtolower(\trim($name));
             if (!isset($headers[$key])) {
-                $headers[$key] = trim($value);
+                $headers[$key] = \trim($value);
             }
         }
 
@@ -169,8 +169,8 @@ final class ImapMessage
 
     private static function extractCharset(string $contentType): string
     {
-        if (preg_match('/charset="?([^";\s]+)"?/i', $contentType, $m)) {
-            return strtoupper($m[1]);
+        if (\preg_match('/charset="?([^";\s]+)"?/i', $contentType, $m)) {
+            return \strtoupper($m[1]);
         }
 
         return 'US-ASCII';
@@ -178,9 +178,9 @@ final class ImapMessage
 
     private static function decodeContent(string $body, string $encoding): string
     {
-        return match (strtolower(trim($encoding))) {
-            'base64' => base64_decode(preg_replace('/\s+/', '', $body) ?? $body) ?: '',
-            'quoted-printable' => quoted_printable_decode($body),
+        return match (\strtolower(\trim($encoding))) {
+            'base64' => \base64_decode(\preg_replace('/\s+/', '', $body) ?? $body) ?: '',
+            'quoted-printable' => \quoted_printable_decode($body),
             default => $body,
         };
     }
@@ -192,12 +192,12 @@ final class ImapMessage
      */
     private static function convertToUtf8(string $str, string $charset): string
     {
-        if ($str === '' || in_array($charset, ['UTF-8', 'US-ASCII', 'ASCII'], true)) {
+        if ($str === '' || \in_array($charset, ['UTF-8', 'US-ASCII', 'ASCII'], true)) {
             return $str;
         }
 
         try {
-            $converted = @mb_convert_encoding($str, 'UTF-8', $charset);
+            $converted = @\mb_convert_encoding($str, 'UTF-8', $charset);
             return $converted !== false ? $converted : $str;
         } catch (\Throwable) {
             return $str;
@@ -213,14 +213,14 @@ final class ImapMessage
      */
     private static function decodeMimeHeader(string $header): string
     {
-        $decoded = preg_replace_callback(
+        $decoded = \preg_replace_callback(
             '/=\?([^?]+)\?([BbQq])\?([^?]*)\?=(?:\s+(?==\?))?/',
             static function (array $m): string {
-                $bytes = strtoupper($m[2]) === 'B'
-                    ? (base64_decode($m[3]) ?: '')
-                    : quoted_printable_decode(str_replace('_', ' ', $m[3]));
+                $bytes = \strtoupper($m[2]) === 'B'
+                    ? (\base64_decode($m[3]) ?: '')
+                    : \quoted_printable_decode(\str_replace('_', ' ', $m[3]));
 
-                return self::convertToUtf8($bytes, strtoupper($m[1]));
+                return self::convertToUtf8($bytes, \strtoupper($m[1]));
             },
             $header
         );
@@ -231,11 +231,11 @@ final class ImapMessage
     /** @return string[] */
     private static function splitByBoundary(string $body, string $boundary): array
     {
-        $parts = preg_split('/--' . preg_quote($boundary, '/') . '(--)?\r?\n/', $body) ?: [];
+        $parts = \preg_split('/--' . \preg_quote($boundary, '/') . '(--)?\r?\n/', $body) ?: [];
 
-        array_shift($parts); // preamble before the first boundary
+        \array_shift($parts); // preamble before the first boundary
         if ($parts !== []) {
-            array_pop($parts); // epilogue after the closing boundary
+            \array_pop($parts); // epilogue after the closing boundary
         }
 
         return $parts;

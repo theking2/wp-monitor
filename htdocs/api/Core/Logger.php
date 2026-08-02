@@ -19,20 +19,20 @@ final class Logger
     public static function get(): MonologLogger
     {
         if (self::$instance === null) {
-            $level = Level::fromName(getenv('LOG_LEVEL') ?: 'info');
+            $level = Level::fromName(\getenv('LOG_LEVEL') ?: 'info');
             $logger = new MonologLogger('wp-monitor');
 
             try {
-                $path = getenv('LOG_PATH') ?: __DIR__ . '/../../../logs/wp-monitor.log';
+                $path = \getenv('LOG_PATH') ?: __DIR__ . '/../../../logs/wp-monitor.log';
 
                 $logger->pushHandler(new CronRotatingFileHandler(
                     $path,
                     $level,
                     [
-                        'cronExpression' => getenv('LOG_ROTATE_CRON') ?: '0 0 * * *',
-                        'maxFiles' => (int) (getenv('LOG_ROTATE_MAX_FILES') ?: 14),
-                        'minSize' => (int) (getenv('LOG_ROTATE_MIN_SIZE') ?: 0),
-                        'compress' => filter_var(getenv('LOG_ROTATE_COMPRESS') ?: false, FILTER_VALIDATE_BOOLEAN),
+                        'cronExpression' => \getenv('LOG_ROTATE_CRON') ?: '0 0 * * *',
+                        'maxFiles' => (int) (\getenv('LOG_ROTATE_MAX_FILES') ?: 14),
+                        'minSize' => (int) (\getenv('LOG_ROTATE_MIN_SIZE') ?: 0),
+                        'compress' => \filter_var(\getenv('LOG_ROTATE_COMPRESS') ?: false, \FILTER_VALIDATE_BOOLEAN),
                     ]
                 ));
             } catch (\Throwable $e) {

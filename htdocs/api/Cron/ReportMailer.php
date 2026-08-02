@@ -9,7 +9,7 @@ final class ReportMailer extends Mailer
     /** @param array<string, mixed> $site @param array<string, mixed> $result */
     public function sendTamperReport(array $site, array $result): void
     {
-        $to = getenv('REPORT_TO_EMAIL') ?: '';
+        $to = \getenv('REPORT_TO_EMAIL') ?: '';
         if ($to === '') {
             return;
         }
@@ -18,7 +18,7 @@ final class ReportMailer extends Mailer
         $mail->addAddress($to);
         $mail->Subject = "[wp-monitor] Possible tampering detected: {$site['name']}";
         $mail->isHTML(false);
-        $mail->Body = sprintf(
+        $mail->Body = \sprintf(
             "Site: %s (%s)\nSimilarity to last known signature: %.1f%%\n\nDiff summary:\n%s\n",
             $site['name'],
             $site['url'],
@@ -31,14 +31,14 @@ final class ReportMailer extends Mailer
         Logger::get()->info('Tamper report accepted by SMTP server', [
             'site_id' => $site['id'],
             'to' => $to,
-            'smtp_response' => trim($mail->getSMTPInstance()->getLastReply()),
+            'smtp_response' => \trim($mail->getSMTPInstance()->getLastReply()),
         ]);
     }
 
     /** @param array<string, mixed> $site */
     public function sendOutageReport(array $site, string $errorMessage): void
     {
-        $to = getenv('REPORT_TO_EMAIL') ?: '';
+        $to = \getenv('REPORT_TO_EMAIL') ?: '';
         if ($to === '') {
             return;
         }
@@ -47,7 +47,7 @@ final class ReportMailer extends Mailer
         $mail->addAddress($to);
         $mail->Subject = "[wp-monitor] Site unreachable: {$site['name']}";
         $mail->isHTML(false);
-        $mail->Body = sprintf(
+        $mail->Body = \sprintf(
             "Site: %s (%s)\nCould not be reached: %s\n",
             $site['name'],
             $site['url'],
@@ -59,14 +59,14 @@ final class ReportMailer extends Mailer
         Logger::get()->info('Outage report accepted by SMTP server', [
             'site_id' => $site['id'],
             'to' => $to,
-            'smtp_response' => trim($mail->getSMTPInstance()->getLastReply()),
+            'smtp_response' => \trim($mail->getSMTPInstance()->getLastReply()),
         ]);
     }
 
     /** @param array<string, mixed> $site */
     public function sendRecoveryReport(array $site): void
     {
-        $to = getenv('REPORT_TO_EMAIL') ?: '';
+        $to = \getenv('REPORT_TO_EMAIL') ?: '';
         if ($to === '') {
             return;
         }
@@ -75,14 +75,14 @@ final class ReportMailer extends Mailer
         $mail->addAddress($to);
         $mail->Subject = "[wp-monitor] Site reachable again: {$site['name']}";
         $mail->isHTML(false);
-        $mail->Body = sprintf("Site: %s (%s)\nIs reachable again.\n", $site['name'], $site['url']);
+        $mail->Body = \sprintf("Site: %s (%s)\nIs reachable again.\n", $site['name'], $site['url']);
 
         Logger::get()->info('Sending recovery report email', ['site_id' => $site['id'], 'to' => $to]);
         $mail->send();
         Logger::get()->info('Recovery report accepted by SMTP server', [
             'site_id' => $site['id'],
             'to' => $to,
-            'smtp_response' => trim($mail->getSMTPInstance()->getLastReply()),
+            'smtp_response' => \trim($mail->getSMTPInstance()->getLastReply()),
         ]);
     }
 }

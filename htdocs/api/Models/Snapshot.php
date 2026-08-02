@@ -50,7 +50,7 @@ final class Snapshot
             'site_id' => $siteId,
             'hash' => $hash,
             'normalized' => $normalizedContent,
-            'raw_length' => strlen($normalizedContent),
+            'raw_length' => \strlen($normalizedContent),
             'similarity' => $similarity,
             'is_signature' => $isSignature ? 1 : 0,
             'triggered_by' => $triggeredBy,

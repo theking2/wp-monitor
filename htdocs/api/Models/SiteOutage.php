@@ -31,7 +31,7 @@ final class SiteOutage
     public static function resolve(int $id): void
     {
         $stmt = Database::connection()->prepare('UPDATE site_outages SET resolved_at = :now WHERE id = :id');
-        $stmt->execute(['now' => date('c'), 'id' => $id]);
+        $stmt->execute(['now' => \date('c'), 'id' => $id]);
     }
 
     /** @return array<int, array<string, mixed>> */

@@ -14,14 +14,14 @@ final class AuthController
         $username = (string) ($request->body['username'] ?? '');
         $password = (string) ($request->body['password'] ?? '');
 
-        $expectedUser = getenv('ADMIN_USERNAME') ?: '';
-        $expectedHash = getenv('ADMIN_PASSWORD_HASH') ?: '';
+        $expectedUser = \getenv('ADMIN_USERNAME') ?: '';
+        $expectedHash = \getenv('ADMIN_PASSWORD_HASH') ?: '';
 
         $valid = $username !== ''
             && $expectedUser !== ''
-            && hash_equals($expectedUser, $username)
+            && \hash_equals($expectedUser, $username)
             && $expectedHash !== ''
-            && password_verify($password, $expectedHash);
+            && \password_verify($password, $expectedHash);
 
         if (!$valid) {
             Logger::get()->warning('Failed login attempt', ['username' => $username]);

@@ -11,11 +11,11 @@ final class Database
     public static function connection(): PDO
     {
         if (self::$instance === null) {
-            $path = getenv('DB_PATH') ?: __DIR__ . '/../../database/wp-monitor.sqlite';
+            $path = \getenv('DB_PATH') ?: __DIR__ . '/../../database/wp-monitor.sqlite';
 
-            $dir = dirname($path);
-            if (!is_dir($dir)) {
-                mkdir($dir, 0775, true);
+            $dir = \dirname($path);
+            if (!\is_dir($dir)) {
+                \mkdir($dir, 0775, true);
             }
 
             $pdo = new PDO('sqlite:' . $path);

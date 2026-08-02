@@ -12,12 +12,12 @@ final class PluginUpdateParser
 {
     public function looksLikePluginUpdate(string $subject, string $body): bool
     {
-        $haystack = strtolower($subject . ' ' . $body);
+        $haystack = \strtolower($subject . ' ' . $body);
 
         // "aktualisi" stems both "aktualisiert" (updated) and "Aktualisierung" (update, noun) —
         // WordPress auto-update notifications are frequently sent in the site's own language.
-        return (str_contains($haystack, 'plugin') || str_contains($haystack, 'auto-update'))
-            && (str_contains($haystack, 'update') || str_contains($haystack, 'upgraded') || str_contains($haystack, 'aktualisi'));
+        return (\str_contains($haystack, 'plugin') || \str_contains($haystack, 'auto-update'))
+            && (\str_contains($haystack, 'update') || \str_contains($haystack, 'upgraded') || \str_contains($haystack, 'aktualisi'));
     }
 
     /**
@@ -36,7 +36,7 @@ final class PluginUpdateParser
         $updates = self::extractFromSection($successSection ?? $body, 'success');
 
         if ($failedSection !== null) {
-            array_push($updates, ...self::extractFromSection($failedSection, 'failed'));
+            \array_push($updates, ...self::extractFromSection($failedSection, 'failed'));
         }
 
         return $updates;
@@ -52,23 +52,23 @@ final class PluginUpdateParser
         $failedMarkers = ['konnten nicht aktualisiert werden', 'could not be updated', 'failed to update'];
         $successMarkers = ['sind jetzt auf dem neuesten stand', 'up to date now', 'have been updated'];
 
-        $lower = strtolower($body);
+        $lower = \strtolower($body);
 
         $failedPos = self::firstMatchPosition($lower, $failedMarkers);
         $successPos = self::firstMatchPosition($lower, $successMarkers);
 
         if ($failedPos !== null && $successPos !== null) {
             return $failedPos < $successPos
-                ? [substr($body, $failedPos, $successPos - $failedPos), substr($body, $successPos)]
-                : [substr($body, $failedPos), substr($body, $successPos, $failedPos - $successPos)];
+                ? [\substr($body, $failedPos, $successPos - $failedPos), \substr($body, $successPos)]
+                : [\substr($body, $failedPos), \substr($body, $successPos, $failedPos - $successPos)];
         }
 
         if ($failedPos !== null) {
-            return [substr($body, $failedPos), null];
+            return [\substr($body, $failedPos), null];
         }
 
         if ($successPos !== null) {
-            return [null, substr($body, $successPos)];
+            return [null, \substr($body, $successPos)];
         }
 
         return [null, null];
@@ -78,7 +78,7 @@ final class PluginUpdateParser
     private static function firstMatchPosition(string $haystack, array $markers): ?int
     {
         foreach ($markers as $marker) {
-            $pos = strpos($haystack, $marker);
+            $pos = \strpos($haystack, $marker);
             if ($pos !== false) {
                 return $pos;
             }
@@ -92,47 +92,47 @@ final class PluginUpdateParser
     {
         $updates = [];
 
-        if (preg_match_all(
+        if (\preg_match_all(
             '/([A-Za-z0-9][\w .\-\/]{1,80}?)\s+(?:was|were|has been|have been)?\s*updated(?: successfully)?(?: from [\w.\-]+)? to ([\w.\-]+)/i',
             $text,
             $matches,
-            PREG_SET_ORDER
+            \PREG_SET_ORDER
         )) {
             foreach ($matches as $match) {
-                $updates[] = ['plugin' => trim($match[1]), 'version' => trim($match[2]), 'status' => $status];
+                $updates[] = ['plugin' => \trim($match[1]), 'version' => \trim($match[2]), 'status' => $status];
             }
         }
 
         // "Elementor Pro (von Version 4.2.0 auf 4.2.1)" — confirmed real-world format from a
         // German WordPress auto-update notification. Group 2 is the version it's actually still
         // on (relevant for a "failed" section); group 3 is the version it moved to on success.
-        if ($updates === [] && preg_match_all(
+        if ($updates === [] && \preg_match_all(
             '/([A-Za-z0-9][\w .\-\/]{1,80}?)\s*\(von Version ([\w.\-]+) auf ([\w.\-]+)\)/i',
             $text,
             $matches,
-            PREG_SET_ORDER
+            \PREG_SET_ORDER
         )) {
             foreach ($matches as $match) {
-                $version = $status === 'failed' ? trim($match[2]) : trim($match[3]);
-                $updates[] = ['plugin' => trim($match[1]), 'version' => $version, 'status' => $status];
+                $version = $status === 'failed' ? \trim($match[2]) : \trim($match[3]);
+                $updates[] = ['plugin' => \trim($match[1]), 'version' => $version, 'status' => $status];
             }
         }
 
-        if ($updates === [] && preg_match_all(
+        if ($updates === [] && \preg_match_all(
             '/([A-Za-z0-9][\w .\-\/]{1,80}?)\s+(?:wurde|wurden)\s+(?:von [\w.\-]+ )?auf ([\w.\-]+)\s+aktualisiert/i',
             $text,
             $matches,
-            PREG_SET_ORDER
+            \PREG_SET_ORDER
         )) {
             foreach ($matches as $match) {
-                $updates[] = ['plugin' => trim($match[1]), 'version' => trim($match[2]), 'status' => $status];
+                $updates[] = ['plugin' => \trim($match[1]), 'version' => \trim($match[2]), 'status' => $status];
             }
         }
 
         if ($updates === []) {
-            foreach (preg_split('/\r?\n/', $text) as $line) {
-                if (preg_match('/^[\-\*\s]*([A-Za-z0-9][\w .\-\/]{1,80}?)\s+(\d+(?:\.\d+){1,3})\s*$/', trim($line), $m)) {
-                    $updates[] = ['plugin' => trim($m[1]), 'version' => trim($m[2]), 'status' => $status];
+            foreach (\preg_split('/\r?\n/', $text) as $line) {
+                if (\preg_match('/^[\-\*\s]*([A-Za-z0-9][\w .\-\/]{1,80}?)\s+(\d+(?:\.\d+){1,3})\s*$/', \trim($line), $m)) {
+                    $updates[] = ['plugin' => \trim($m[1]), 'version' => \trim($m[2]), 'status' => $status];
                 }
             }
         }
@@ -144,8 +144,8 @@ final class PluginUpdateParser
     {
         // Trailing punctuation/backslash picked up from surrounding text/line-wrap artifacts
         // (confirmed real case: a trailing "\" on an otherwise-correct URL) isn't part of the URL.
-        if (preg_match('#https?://[^\s<>"\']+#i', $body, $m)) {
-            return rtrim($m[0], ".,;)\\");
+        if (\preg_match('#https?://[^\s<>"\']+#i', $body, $m)) {
+            return \rtrim($m[0], ".,;)\\");
         }
 
         return null;
@@ -154,8 +154,8 @@ final class PluginUpdateParser
     /** A "[Site Name] ..." subject prefix is a common site-nickname convention for these notifications. */
     public function extractSiteName(string $subject): ?string
     {
-        if (preg_match('/^\[([^\]]+)\]/', trim($subject), $m)) {
-            return trim($m[1]);
+        if (\preg_match('/^\[([^\]]+)\]/', \trim($subject), $m)) {
+            return \trim($m[1]);
         }
 
         return null;

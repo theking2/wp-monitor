@@ -10,16 +10,14 @@ final class SiteScanner
     public function fetch(string $url): string
     {
         $ch = $this->newHandle($url);
-        $html = curl_exec($ch);
+        $html = \curl_exec($ch);
 
         if ($html === false) {
-            $error = curl_error($ch);
-            curl_close($ch);
+            $error = \curl_error($ch);
             throw new \RuntimeException($error ?: 'request failed');
         }
 
-        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $status = \curl_getinfo($ch, \CURLINFO_HTTP_CODE);
 
         if ($status >= 400) {
             throw new \RuntimeException("unexpected HTTP status {$status}");
@@ -38,32 +36,32 @@ final class SiteScanner
     {
         $results = [];
         $queue = $urls;
-        $multi = curl_multi_init();
+        $multi = \curl_multi_init();
         $active = [];
 
         $start = function (string $url) use (&$active, $multi): void {
             $ch = $this->newHandle($url);
-            curl_multi_add_handle($multi, $ch);
+            \curl_multi_add_handle($multi, $ch);
             $active[(int) $ch] = ['handle' => $ch, 'url' => $url];
         };
 
-        while (count($active) < $concurrency && $queue !== []) {
-            $start(array_shift($queue));
+        while (\count($active) < $concurrency && $queue !== []) {
+            $start(\array_shift($queue));
         }
 
         $running = null;
         do {
-            curl_multi_exec($multi, $running);
-            curl_multi_select($multi);
+            \curl_multi_exec($multi, $running);
+            \curl_multi_select($multi);
 
-            while ($info = curl_multi_info_read($multi)) {
+            while ($info = \curl_multi_info_read($multi)) {
                 $ch = $info['handle'];
                 $id = (int) $ch;
                 $url = $active[$id]['url'];
 
-                $html = curl_multi_getcontent($ch);
-                $error = curl_error($ch);
-                $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $html = \curl_multi_getcontent($ch);
+                $error = \curl_error($ch);
+                $status = \curl_getinfo($ch, \CURLINFO_HTTP_CODE);
 
                 if ($error !== '') {
                     $results[$url] = ['content' => null, 'error' => $error];
@@ -73,18 +71,17 @@ final class SiteScanner
                     $results[$url] = ['content' => $this->extractRelevantContent((string) $html), 'error' => null];
                 }
 
-                curl_multi_remove_handle($multi, $ch);
-                curl_close($ch);
+                \curl_multi_remove_handle($multi, $ch);
                 unset($active[$id]);
 
                 if ($queue !== []) {
-                    $start(array_shift($queue));
+                    $start(\array_shift($queue));
                     $running = 1;
                 }
             }
         } while ($running > 0 || $active !== []);
 
-        curl_multi_close($multi);
+        \curl_multi_close($multi);
 
         return $results;
     }
@@ -94,13 +91,13 @@ final class SiteScanner
      */
     private function newHandle(string $url)
     {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => (int) (getenv('SITE_SCANNER_TIMEOUT') ?: 10),
-            CURLOPT_USERAGENT => 'wp-monitor/1.0 (+site integrity check)',
-            CURLOPT_SSL_VERIFYPEER => true,
+        $ch = \curl_init($url);
+        \curl_setopt_array($ch, [
+            \CURLOPT_RETURNTRANSFER => true,
+            \CURLOPT_FOLLOWLOCATION => true,
+            \CURLOPT_TIMEOUT => (int) (\getenv('SITE_SCANNER_TIMEOUT') ?: 10),
+            \CURLOPT_USERAGENT => 'wp-monitor/1.0 (+site integrity check)',
+            \CURLOPT_SSL_VERIFYPEER => true,
         ]);
 
         return $ch;
@@ -108,10 +105,10 @@ final class SiteScanner
 
     private function extractRelevantContent(string $html): string
     {
-        libxml_use_internal_errors(true);
+        \libxml_use_internal_errors(true);
         $dom = new \DOMDocument();
         $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
-        libxml_clear_errors();
+        \libxml_clear_errors();
 
         $xpath = new \DOMXPath($dom);
         foreach ($xpath->query('//script | //style | //noscript | //comment()') as $node) {
@@ -130,10 +127,10 @@ final class SiteScanner
      */
     private function normalize(string $text): string
     {
-        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
-        $text = preg_replace('/\b[0-9a-f]{32,64}\b/i', '[hash]', $text) ?? $text;
-        $text = preg_replace('/\b\d{1,2}:\d{2}(:\d{2})?\b/', '[time]', $text) ?? $text;
-        $text = preg_replace('/\b(19|20)\d{2}-\d{2}-\d{2}\b/', '[date]', $text) ?? $text;
+        $text = \trim(\preg_replace('/\s+/u', ' ', $text) ?? $text);
+        $text = \preg_replace('/\b[0-9a-f]{32,64}\b/i', '[hash]', $text) ?? $text;
+        $text = \preg_replace('/\b\d{1,2}:\d{2}(:\d{2})?\b/', '[time]', $text) ?? $text;
+        $text = \preg_replace('/\b(19|20)\d{2}-\d{2}-\d{2}\b/', '[date]', $text) ?? $text;
 
         return $text;
     }

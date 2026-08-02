@@ -62,7 +62,7 @@ final class Site
         $stmt = Database::connection()->prepare(
             'UPDATE sites SET status = :status, last_checked_at = :now, updated_at = :now WHERE id = :id'
         );
-        $stmt->execute(['status' => $status, 'now' => date('c'), 'id' => $id]);
+        $stmt->execute(['status' => $status, 'now' => \date('c'), 'id' => $id]);
     }
 
     /** @return array<string, mixed>|null */
@@ -71,7 +71,7 @@ final class Site
         $stmt = Database::connection()->prepare(
             'UPDATE sites SET name = :name, updated_at = :now WHERE id = :id'
         );
-        $stmt->execute(['name' => $name, 'now' => date('c'), 'id' => $id]);
+        $stmt->execute(['name' => $name, 'now' => \date('c'), 'id' => $id]);
 
         return self::find($id);
     }
