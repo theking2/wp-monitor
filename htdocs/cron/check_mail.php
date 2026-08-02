@@ -24,7 +24,7 @@ try {
     $forwarder = new MailForwarder();
 
     $messages = $reader->fetchUnseen();
-    $logger->info('check_mail run started', ['unseen_count' => count($messages)]);
+    $logger->debug('check_mail run started', ['unseen_count' => count($messages)]);
 
     foreach ($messages as $message) {
         // Everything for this one message lives in this try/catch — so literally nothing about 
@@ -115,7 +115,7 @@ try {
     $reader->disconnect();
     $forwarder->closeConnection();
 
-    $logger->info('check_mail run finished', ['processed' => count($messages)]);
+    $logger->debug('check_mail run finished', ['processed' => count($messages)]);
     echo count($messages) . " message(s) processed\n";
 } catch (\Throwable $e) {
     $logger->error('check_mail run failed', ['error' => $e->getMessage(), 'exception' => $e]);
