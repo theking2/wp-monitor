@@ -16,8 +16,14 @@ final class PluginUpdateParser
 
         // "aktualisi" stems both "aktualisiert" (updated) and "Aktualisierung" (update, noun) —
         // WordPress auto-update notifications are frequently sent in the site's own language.
-        return (\str_contains($haystack, 'plugin') || \str_contains($haystack, 'auto-update'))
-            && (\str_contains($haystack, 'update') || \str_contains($haystack, 'upgraded') || \str_contains($haystack, 'aktualisi'));
+        $mentionsUpdate = \str_contains($haystack, 'update') || \str_contains($haystack, 'upgraded') || \str_contains($haystack, 'aktualisi');
+
+        // Core-update notifications ("wurde automatisch auf WordPress 6.8.7 aktualisiert") don't
+        // say "plugin"/"auto-update" at all, so a "WordPress <version>" mention is an alternative gate.
+        $mentionsCoreVersion = \preg_match('/wordpress\s+\d+(?:\.\d+){1,3}/', $haystack) === 1;
+
+        return $mentionsUpdate
+            && (\str_contains($haystack, 'plugin') || \str_contains($haystack, 'auto-update') || $mentionsCoreVersion);
     }
 
     /**
@@ -127,6 +133,18 @@ final class PluginUpdateParser
             foreach ($matches as $match) {
                 $updates[] = ['plugin' => \trim($match[1]), 'version' => \trim($match[2]), 'status' => $status];
             }
+        }
+
+        // Core-update notifications name the product inline with the version ("auf WordPress
+        // 6.8.7 aktualisiert" / "updated to WordPress 6.8.7") — the generic patterns above miss
+        // this because their version group excludes spaces, and "WordPress" isn't a plugin name.
+        // Anchored on "aktualisiert"/"updated to" right next to it so a merely-*available* newer
+        // version mentioned elsewhere in the mail ("WordPress 7.0.3 ist ebenfalls verfügbar")
+        // isn't picked up as if it had been installed.
+        if ($updates === [] && \preg_match('/auf\s+wordpress\s+(\d+(?:\.\d+){1,3})\s+aktualisiert/i', $text, $m)) {
+            $updates[] = ['plugin' => 'WordPress', 'version' => $m[1], 'status' => $status];
+        } elseif ($updates === [] && \preg_match('/updated\s+to\s+wordpress\s+(\d+(?:\.\d+){1,3})/i', $text, $m)) {
+            $updates[] = ['plugin' => 'WordPress', 'version' => $m[1], 'status' => $status];
         }
 
         if ($updates === []) {
