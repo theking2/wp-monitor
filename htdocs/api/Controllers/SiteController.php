@@ -75,4 +75,35 @@ final class SiteController
 
         Response::json(Site::updateName($site['id'], $name));
     }
+
+    public function confirmChanges(Request $request, array $params): void
+    {
+        $site = Site::find((int) $params['id']);
+        if ($site === null) {
+            Response::error('Site not found', 404);
+            return;
+        }
+
+        if ($site['status'] !== 'tampered') {
+            Response::error('Site is not currently flagged as tampered', 409);
+            return;
+        }
+
+        $snapshot = Snapshot::latest($site['id']);
+        if ($snapshot === null) {
+            Response::error('No snapshot to confirm', 409);
+            return;
+        }
+
+        Snapshot::promoteToSignature($snapshot['id']);
+        Site::updateStatus($site['id'], 'ok');
+        Alert::resolveOpenForSite($site['id']);
+
+        Logger::get()->info('Tampered content confirmed as legitimate', [
+            'site_id' => $site['id'],
+            'snapshot_id' => $snapshot['id'],
+        ]);
+
+        Response::json(Site::find($site['id']));
+    }
 }

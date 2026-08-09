@@ -16,6 +16,9 @@ const renaming = ref(false)
 const renameError = ref('')
 const nameInput = ref(null)
 
+const confirming = ref(false)
+const confirmError = ref('')
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -58,6 +61,19 @@ async function saveName() {
     renameError.value = e.message
   } finally {
     renaming.value = false
+  }
+}
+
+async function confirmChanges() {
+  confirmError.value = ''
+  confirming.value = true
+  try {
+    await api.confirmSiteChanges(site.value.id)
+    await load()
+  } catch (e) {
+    confirmError.value = e.message
+  } finally {
+    confirming.value = false
   }
 }
 
@@ -114,8 +130,18 @@ onMounted(load)
               <path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
             </svg>
           </button>
+          <button
+            v-if="site.status === 'tampered'"
+            type="button"
+            :disabled="confirming"
+            class="ml-auto rounded-md bg-green-700 px-3 py-1.5 text-sm text-white hover:bg-green-600 disabled:opacity-50 dark:bg-green-600 dark:hover:bg-green-500"
+            @click="confirmChanges"
+          >
+            {{ confirming ? 'Confirming…' : 'Confirm changes' }}
+          </button>
         </div>
         <p v-if="renameError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ renameError }}</p>
+        <p v-if="confirmError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ confirmError }}</p>
       </div>
 
       <a

@@ -37,4 +37,12 @@ final class Alert
 
         return $stmt->fetch();
     }
+
+    public static function resolveOpenForSite(int $siteId): void
+    {
+        $stmt = Database::connection()->prepare(
+            "UPDATE alerts SET status = 'resolved', resolved_at = :now WHERE site_id = :site_id AND status = 'open'"
+        );
+        $stmt->execute(['now' => \date('c'), 'site_id' => $siteId]);
+    }
 }

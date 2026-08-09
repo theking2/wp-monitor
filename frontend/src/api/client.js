@@ -39,4 +39,5 @@ export const api = {
   createSite: (payload) => request('/sites', { method: 'POST', body: payload }),
   scanSite: (id) => request(`/sites/${id}/scan`, { method: 'POST' }),
   renameSite: (id, name) => request(`/sites/${id}/rename`, { method: 'POST', body: { name } }),
+  confirmSiteChanges: (id) => request(`/sites/${id}/confirm`, { method: 'POST' }),
 }

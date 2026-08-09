@@ -32,6 +32,17 @@ final class Snapshot
         return $stmt->fetch() ?: null;
     }
 
+    /** @return array<string, mixed>|null */
+    public static function latest(int $siteId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT * FROM snapshots WHERE site_id = :site_id ORDER BY id DESC LIMIT 1'
+        );
+        $stmt->execute(['site_id' => $siteId]);
+
+        return $stmt->fetch() ?: null;
+    }
+
     /** @return array<string, mixed> */
     public static function create(
         int $siteId,
