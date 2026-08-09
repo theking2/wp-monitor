@@ -66,10 +66,21 @@ if [ "$DEPLOY_PROTOCOL" = "sftp" ] && [ -z "$DEPLOY_PASSWORD" ]; then
   SITE="sftp://${DEPLOY_USER}@${DEPLOY_HOST}"
 else
   LFTP_OPTS+=(-u "$DEPLOY_USER,$DEPLOY_PASSWORD")
-  SITE="$DEPLOY_PROTOCOL://$DEPLOY_HOST"
+  # "ftps" means *explicit* FTPS (AUTH TLS on the plain FTP port, 21 by default) — the scheme
+  # virtually every host (Plesk/ProFTPD included) actually speaks. lftp's "ftps://" scheme is
+  # *implicit* FTPS on port 990 instead, which just hangs with no response against a server
+  # that isn't listening there — connect via "ftp://" and force TLS explicitly instead.
+  if [ "$DEPLOY_PROTOCOL" = "ftps" ]; then
+    SITE="ftp://$DEPLOY_HOST"
+  else
+    SITE="$DEPLOY_PROTOCOL://$DEPLOY_HOST"
+  fi
 fi
 
 STARTUP_CMDS="set ssl:verify-certificate $DEPLOY_VERIFY_CERT;"
+if [ "$DEPLOY_PROTOCOL" = "ftps" ]; then
+  STARTUP_CMDS+=" set ftp:ssl-force true; set ftp:ssl-protect-data true;"
+fi
 if [ -n "$DEPLOY_SSH_KEY" ]; then
   STARTUP_CMDS+=" set sftp:connect-program \"ssh -a -x -i $DEPLOY_SSH_KEY\";"
 fi
