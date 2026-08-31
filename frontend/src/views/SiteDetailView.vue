@@ -19,6 +19,9 @@ const nameInput = ref(null)
 const confirming = ref(false)
 const confirmError = ref('')
 
+const savingSettings = ref(false)
+const settingsError = ref('')
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -74,6 +77,19 @@ async function confirmChanges() {
     confirmError.value = e.message
   } finally {
     confirming.value = false
+  }
+}
+
+async function toggleSetting(key) {
+  settingsError.value = ''
+  savingSettings.value = true
+  try {
+    const updated = await api.updateSiteSettings(site.value.id, { [key]: !site.value[key] })
+    site.value[key] = updated[key]
+  } catch (e) {
+    settingsError.value = e.message
+  } finally {
+    savingSettings.value = false
   }
 }
 
@@ -152,6 +168,30 @@ onMounted(load)
       >
         {{ site.url }}
       </a>
+
+      <div class="flex flex-wrap gap-6 text-sm">
+        <label class="flex items-center gap-2">
+          <input
+            type="checkbox"
+            :checked="!!site.sanity_check_enabled"
+            :disabled="savingSettings"
+            class="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+            @change="toggleSetting('sanity_check_enabled')"
+          >
+          Sanity check during scheduled scan
+        </label>
+        <label class="flex items-center gap-2">
+          <input
+            type="checkbox"
+            :checked="!!site.wp_cron_enabled"
+            :disabled="savingSettings"
+            class="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+            @change="toggleSetting('wp_cron_enabled')"
+          >
+          Fire wp-cron during scheduled scan
+        </label>
+      </div>
+      <p v-if="settingsError" class="text-sm text-red-600 dark:text-red-400">{{ settingsError }}</p>
 
       <ManualScanPanel :site-id="site.id" @scanned="load" />
 

@@ -87,6 +87,40 @@ final class SiteScanner
     }
 
     /**
+     * Triggers WordPress's pseudo-cron (wp-cron.php) directly rather than relying on it firing
+     * off a real page visit — needed for sites with DISABLE_WP_CRON set (common when a host or
+     * this very tool is expected to trigger it externally instead). Fire-and-forget: the request
+     * runs whatever due tasks synchronously on the WP side, so this can legitimately take a
+     * while and its response body is never useful to us — only whether it could be reached.
+     *
+     * @return array{success: bool, error: ?string}
+     */
+    public function fireWpCron(string $siteUrl): array
+    {
+        $ch = \curl_init(\rtrim($siteUrl, '/') . '/wp-cron.php?doing_wp_cron');
+        \curl_setopt_array($ch, [
+            \CURLOPT_RETURNTRANSFER => true,
+            \CURLOPT_FOLLOWLOCATION => true,
+            \CURLOPT_TIMEOUT => (int) (\getenv('WP_CRON_TIMEOUT') ?: 30),
+            \CURLOPT_USERAGENT => 'wp-monitor/1.0 (+wp-cron trigger)',
+            \CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        \curl_exec($ch);
+
+        $error = \curl_error($ch);
+        if ($error !== '') {
+            return ['success' => false, 'error' => $error];
+        }
+
+        $status = \curl_getinfo($ch, \CURLINFO_HTTP_CODE);
+        if ($status >= 400) {
+            return ['success' => false, 'error' => "unexpected HTTP status {$status}"];
+        }
+
+        return ['success' => true, 'error' => null];
+    }
+
+    /**
      * @return \CurlHandle
      */
     private function newHandle(string $url)

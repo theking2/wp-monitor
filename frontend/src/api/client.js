@@ -40,4 +40,5 @@ export const api = {
   scanSite: (id) => request(`/sites/${id}/scan`, { method: 'POST' }),
   renameSite: (id, name) => request(`/sites/${id}/rename`, { method: 'POST', body: { name } }),
   confirmSiteChanges: (id) => request(`/sites/${id}/confirm`, { method: 'POST' }),
+  updateSiteSettings: (id, settings) => request(`/sites/${id}/settings`, { method: 'POST', body: settings }),
 }

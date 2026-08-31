@@ -76,6 +76,30 @@ final class SiteController
         Response::json(Site::updateName($site['id'], $name));
     }
 
+    public function updateSettings(Request $request, array $params): void
+    {
+        $site = Site::find((int) $params['id']);
+        if ($site === null) {
+            Response::error('Site not found', 404);
+            return;
+        }
+
+        $sanityCheckEnabled = \array_key_exists('sanity_check_enabled', $request->body)
+            ? (bool) $request->body['sanity_check_enabled']
+            : null;
+        $wpCronEnabled = \array_key_exists('wp_cron_enabled', $request->body)
+            ? (bool) $request->body['wp_cron_enabled']
+            : null;
+
+        Logger::get()->info('Site scan settings updated', [
+            'site_id' => $site['id'],
+            'sanity_check_enabled' => $sanityCheckEnabled,
+            'wp_cron_enabled' => $wpCronEnabled,
+        ]);
+
+        Response::json(Site::updateSettings($site['id'], $sanityCheckEnabled, $wpCronEnabled));
+    }
+
     public function confirmChanges(Request $request, array $params): void
     {
         $site = Site::find((int) $params['id']);

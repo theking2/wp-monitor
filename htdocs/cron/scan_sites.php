@@ -24,9 +24,11 @@ try {
     $logger->info('scan_sites run started', ['site_count' => count($sites)]);
 
     $concurrency = (int) (getenv('SCAN_CONCURRENCY') ?: 10);
-    $fetchResults = $scanner->fetchMany(array_column($sites, 'url'), $concurrency);
 
-    foreach ($sites as $site) {
+    $sanityCheckSites = array_filter($sites, static fn(array $site): bool => (bool) $site['sanity_check_enabled']);
+    $fetchResults = $scanner->fetchMany(array_column($sanityCheckSites, 'url'), $concurrency);
+
+    foreach ($sanityCheckSites as $site) {
         // Whole per-site body in one try/catch — same reasoning as check_mail.php: one site's
         // problem (fetch failure, a DB hiccup while recording it, ...) must not abort scanning
         // the rest of the batch.
@@ -67,6 +69,32 @@ try {
                 'error' => $e->getMessage(),
             ]);
             fwrite(STDOUT, "[{$site['url']}] failed: {$e->getMessage()}\n");
+        }
+    }
+
+    $wpCronSites = array_filter($sites, static fn(array $site): bool => (bool) $site['wp_cron_enabled']);
+    foreach ($wpCronSites as $site) {
+        try {
+            $logger->debug('Firing wp-cron', ['site_id' => $site['id'], 'url' => $site['url']]);
+            $result = $scanner->fireWpCron($site['url']);
+
+            if ($result['success']) {
+                fwrite(STDOUT, "[{$site['url']}] wp-cron fired\n");
+            } else {
+                $logger->warning('wp-cron trigger failed', [
+                    'site_id' => $site['id'],
+                    'url' => $site['url'],
+                    'error' => $result['error'],
+                ]);
+                fwrite(STDOUT, "[{$site['url']}] wp-cron failed: {$result['error']}\n");
+            }
+        } catch (\Throwable $e) {
+            $logger->error('Failed to fire wp-cron, will retry next run', [
+                'site_id' => $site['id'],
+                'url' => $site['url'],
+                'error' => $e->getMessage(),
+            ]);
+            fwrite(STDOUT, "[{$site['url']}] wp-cron failed: {$e->getMessage()}\n");
         }
     }
 

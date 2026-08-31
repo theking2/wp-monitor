@@ -75,4 +75,25 @@ final class Site
 
         return self::find($id);
     }
+
+    /** @return array<string, mixed>|null */
+    public static function updateSettings(int $id, ?bool $sanityCheckEnabled, ?bool $wpCronEnabled): ?array
+    {
+        $site = self::find($id);
+        if ($site === null) {
+            return null;
+        }
+
+        $stmt = Database::connection()->prepare(
+            'UPDATE sites SET sanity_check_enabled = :sanity_check_enabled, wp_cron_enabled = :wp_cron_enabled, updated_at = :now WHERE id = :id'
+        );
+        $stmt->execute([
+            'sanity_check_enabled' => ($sanityCheckEnabled ?? (bool) $site['sanity_check_enabled']) ? 1 : 0,
+            'wp_cron_enabled' => ($wpCronEnabled ?? (bool) $site['wp_cron_enabled']) ? 1 : 0,
+            'now' => \date('c'),
+            'id' => $id,
+        ]);
+
+        return self::find($id);
+    }
 }
