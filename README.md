@@ -273,8 +273,8 @@ The host's crontab calls into the running container via `docker compose exec`. E
 minutes), from the project root:
 
 ```cron
-*/10 * * * * cd /path/to/wp-monitor && docker compose exec -T server php /var/www/html/cron/check_mail.php >> logs/cron-mail.log 2>&1
-*/15 * * * * cd /path/to/wp-monitor && docker compose exec -T server php /var/www/html/cron/scan_sites.php >> logs/cron-scan.log 2>&1
+*/10 * * * * cd /path/to/wp-monitor && docker compose --env-file .wp-mon.env exec -T server php /var/www/html/cron/check_mail.php >> logs/cron-mail.log 2>&1
+*/15 * * * * cd /path/to/wp-monitor && docker compose --env-file .wp-mon.env exec -T server php /var/www/html/cron/scan_sites.php >> logs/cron-scan.log 2>&1
 ```
 
 ## Frontend dev workflow
@@ -357,7 +357,16 @@ localhost:9080/ | webroot, contents of folder = `./htdocs`
 
 #### Without the extension
 
-In a terminal, start the application by running: `docker compose up --build`.
+In a terminal, start the application by running: `docker compose --env-file .wp-mon.env up --build`.
+
+> \[!IMPORTANT]
+> Compose reads `PROJECT_NAME`/`NETWORK_NAME` (used for `${...}` substitution in `compose.yaml`
+> itself, e.g. `name:`) from a project-root env file — separately from the `env_file:` directive that
+> populates the container. Compose's default for that file is literally `.env`, which we don't use (see
+> [Configuration](#configuration-wp-monenv)), so every `docker compose` invocation needs
+> `--env-file .wp-mon.env` — including `exec`/`down`/etc., not just `up`. The Containers VSCode
+> extension's "Run All Services" button does not expose this flag; if project/network name come out
+> blank there, use the terminal command instead.
 
 ### Setup php xdebug
 
