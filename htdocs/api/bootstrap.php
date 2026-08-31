@@ -4,7 +4,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 // Fallback .env loader so `php -S`/CLI usage outside docker compose still picks up
 // config; inside the container, compose's `env_file` already populates these.
-$envFile = __DIR__ . '/../../.env';
+$envFile = __DIR__ . '/../../.wp-mon.env';
 if (file_exists($envFile)) {
     foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         $line = trim($line);

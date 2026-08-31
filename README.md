@@ -34,7 +34,7 @@ keeps an eye on a mailbox for WordPress plugin/version update notifications, for
   (`App\Cron\Imap\ImapClient`/`ImapMessage`, raw TLS socket, no PHP `imap` extension needed) rather
   than a library — see [Why a hand-rolled IMAP client](#why-a-hand-rolled-imap-client) below.
   [`PHPMailer`](https://github.com/PHPMailer/PHPMailer) is still used for forwarding and report emails.
-- **Auth**: a single admin account configured via `.env` (username + bcrypt password hash), issuing a
+- **Auth**: a single admin account configured via `.wp-mon.env` (username + bcrypt password hash), issuing a
   JWT ([`firebase/php-jwt`](https://github.com/firebase/php-jwt)) on login. No user table/registration.
 - **Frontend**: Vue3 + Vite + vue-router + Pinia + Tailwind, built and copied into `htdocs/assets/app`.
 - **Database**: SQLite only — no database server/container. The `pdo_sqlite` PHP extension is enabled
@@ -48,8 +48,8 @@ keeps an eye on a mailbox for WordPress plugin/version update notifications, for
 
 ```
 wp-monitor
-├── .env                          # docker + app configuration (see below), not committed
-├── .env_sample
+├── .wp-mon.env                    # docker + app configuration (see below), not committed
+├── .wp-mon.env_sample
 ├── .deploy.env                    # frontend deploy credentials (see below), not committed
 ├── .deploy.env.sample
 ├── deploy-frontend.sh              # builds + uploads the SPA (see "Deploying the frontend")
@@ -95,7 +95,7 @@ wp-monitor
     │   │   └── geologica/geologica-variable.woff2   # body font
     │   └── app/                   # built SPA output (`vite build`), gitignored
     ├── api/
-    │   ├── bootstrap.php          # autoload + .env loading
+    │   ├── bootstrap.php          # autoload + .wp-mon.env loading
     │   ├── routes.php             # route table -> controller actions
     │   ├── Core/                  # framework-ish plumbing (not app-specific)
     │   │   ├── Router.php
@@ -157,9 +157,9 @@ Table | Purpose
 `plugin_updates` | Parsed WP plugin/version update notifications extracted from mail, incl. success/failed status.
 `processed_emails` | IMAP UID/Message-ID of already-handled mails, so `check_mail.php` is idempotent across runs.
 
-## Configuration (`.env`)
+## Configuration (`.wp-mon.env`)
 
-Copy `.env_sample` to `.env` and fill in the values — `.env` is gitignored, `.env_sample` is not. In
+Copy `.wp-mon.env_sample` to `.wp-mon.env` and fill in the values — `.wp-mon.env` is gitignored, `.wp-mon.env_sample` is not. In
 addition to the existing `NETWORK_NAME` / `PROJECT_NAME` variables, the app needs:
 
 ```
@@ -212,7 +212,7 @@ SIGNATURE_SIMILARITY_THRESHOLD=0.97   # below this similarity, a change is flagg
 ```
 
 > \[!IMPORTANT]
-> Our `.env` loader (`htdocs/api/bootstrap.php`) is intentionally minimal: it splits each line on the
+> Our `.wp-mon.env` loader (`htdocs/api/bootstrap.php`) is intentionally minimal: it splits each line on the
 > first `=` and trims whitespace — it does **not** strip surrounding quotes. Never wrap values in `"`
 > or `'`; write `IMAP_PASSWORD=my#pass` and `LOG_ROTATE_CRON=0 0 * * *`, not `IMAP_PASSWORD="my#pass"`.
 > A `#` or space inside a value is fine as-is; quotes become part of the value and will silently break
@@ -290,7 +290,7 @@ npm run build      # outputs to ../htdocs/assets/app
 
 `deploy-frontend.sh` builds the SPA and uploads `htdocs/assets/app` to the server via `lftp`
 (`ftp`, `ftps`, or `sftp`). One-time setup: copy `.deploy.env.sample` to `.deploy.env` and fill in
-your host/credentials — same `.env`/`.env_sample` pattern as the app config, and `.deploy.env` is
+your host/credentials — same `.wp-mon.env`/`.wp-mon.env_sample` pattern as the app config, and `.deploy.env` is
 gitignored for the same reason.
 
 ```
@@ -303,6 +303,27 @@ removed — necessary because Vite hashes bundle filenames on every build, other
 files pile up forever. This is exactly why `DEPLOY_REMOTE_PATH` must point specifically at the
 built-app folder (e.g. `/httpdocs/assets/app`) and never at the whole webroot. Leave
 `DEPLOY_PASSWORD` blank with `DEPLOY_PROTOCOL=sftp` to use SSH key/agent auth instead of a password.
+
+## Deploying the backend
+
+`deploy-backend.sh` runs `composer install --no-dev` and uploads the PHP API to the server via
+`lftp`, using the same `.deploy.env` as the frontend script plus `DEPLOY_BACKEND_REMOTE_PATH`
+(the remote webroot, e.g. `/httpdocs`).
+
+```
+./deploy-backend.sh          # prompts for confirmation before uploading
+./deploy-backend.sh --yes    # skips the prompt, for scripting/CI
+```
+
+It mirrors (with deletion) only its own `api/`, `cron/`, `vendor/`, and `database/migrations/`
+subfolders, and `put`s `composer.json`, `composer.lock`, `index.php`, and `.htaccess`
+individually — it never touches `assets/` (owned by `deploy-frontend.sh`) or
+`database/*.sqlite` (the live database), even though `DEPLOY_BACKEND_REMOTE_PATH` points at the
+whole webroot. Migrations in `database/migrations/` are applied automatically on the next
+request (see `App\Core\Migrator`), so there's no separate migration step.
+
+There is currently no CI/CD — deploying either the frontend or backend is a manual step you run
+locally.
 
 ## Fonts
 
@@ -325,7 +346,7 @@ applies to the container/webserver/debugger scaffolding itself.
 #### With Containers VSCode extension
 
 1) Install VScode extension "Container Tools"
-2) Update `.env` file (setting network and project name, plus the app configuration above)
+2) Update `.wp-mon.env` file (setting network and project name, plus the app configuration above)
 3) Open `compose.yaml` file and click "Run All Services"
 
 After that the following service runs with this uri:

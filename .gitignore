@@ -1,5 +1,5 @@
 /logs
-.env
+.wp-mon.env
 .deploy.env
 *.code-workspace
 /.claude/
