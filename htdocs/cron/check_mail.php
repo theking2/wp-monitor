@@ -6,6 +6,7 @@ use App\Core\Logger;
 use App\Cron\MailForwarder;
 use App\Cron\MailReader;
 use App\Cron\PluginUpdateParser;
+use App\Cron\SiteChecker;
 use App\Models\PluginUpdate;
 use App\Models\ProcessedEmail;
 use App\Models\Site;
@@ -69,6 +70,32 @@ try {
                     $siteName = $parser->extractSiteName($subject) ?? $siteUrl;
                     $site = Site::firstOrCreateByUrl(rtrim($siteUrl, '/'), $siteName);
                     $logger->debug('Site discovered/matched from mail', ['site_id' => $site['id'], 'url' => $site['url']]);
+
+                    // An update just landed on this site — check it now instead of waiting for
+                    // the next scheduled scan_sites.php run.
+                    try {
+                        $checkResult = (new SiteChecker())->check($site, 'plugin_update_email');
+                        if (isset($checkResult['error'])) {
+                            $logger->warning('Post-update check failed', [
+                                'site_id' => $site['id'],
+                                'url' => $site['url'],
+                                'error' => $checkResult['error'],
+                            ]);
+                        } else {
+                            $logger->info('Post-update check completed', [
+                                'site_id' => $site['id'],
+                                'url' => $site['url'],
+                                'status' => $checkResult['status'],
+                                'similarity' => $checkResult['similarity'],
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        $logger->error('Post-update check threw', [
+                            'site_id' => $site['id'],
+                            'url' => $site['url'],
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
 
                 if ($updates === []) {

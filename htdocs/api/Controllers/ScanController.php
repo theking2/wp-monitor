@@ -5,10 +5,7 @@ namespace App\Controllers;
 use App\Core\Logger;
 use App\Core\Request;
 use App\Core\Response;
-use App\Cron\OutageTracker;
-use App\Cron\ReportMailer;
-use App\Cron\SignatureComparer;
-use App\Cron\SiteScanner;
+use App\Cron\SiteChecker;
 use App\Models\Site;
 
 final class ScanController
@@ -25,49 +22,11 @@ final class ScanController
 
         $logger->debug('Manual scan requested', ['site_id' => $site['id'], 'url' => $site['url']]);
 
-        try {
-            $content = (new SiteScanner())->fetch($site['url']);
-        } catch (\Throwable $e) {
-            $logger->error('Manual scan fetch failed', [
-                'site_id' => $site['id'],
-                'url' => $site['url'],
-                'error' => $e->getMessage(),
-            ]);
-            try {
-                (new OutageTracker())->recordFailure($site, $e);
-            } catch (\Throwable $trackerError) {
-                $logger->error('Failed to record outage', ['site_id' => $site['id'], 'error' => $trackerError->getMessage()]);
-            }
-            Response::error('Could not fetch site: ' . $e->getMessage(), 502);
+        $result = (new SiteChecker())->check($site, 'manual');
+
+        if (isset($result['error'])) {
+            Response::error('Could not fetch site: ' . $result['error'], 502);
             return;
-        }
-
-        try {
-            (new OutageTracker())->recordSuccess($site);
-        } catch (\Throwable $e) {
-            $logger->error('Failed to record recovery', ['site_id' => $site['id'], 'error' => $e->getMessage()]);
-        }
-
-        $result = (new SignatureComparer())->compareAndStore($site, $content, 'manual');
-
-        if ($result['tampered']) {
-            try {
-                (new ReportMailer())->sendTamperReport($site, $result);
-            } catch (\Throwable $e) {
-                $logger->warning('Tamper report email failed to send', [
-                    'site_id' => $site['id'],
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        } elseif ($result['drift']) {
-            try {
-                (new ReportMailer())->sendDriftReport($site, $result);
-            } catch (\Throwable $e) {
-                $logger->warning('Drift report email failed to send', [
-                    'site_id' => $site['id'],
-                    'error' => $e->getMessage(),
-                ]);
-            }
         }
 
         Response::json($result);
