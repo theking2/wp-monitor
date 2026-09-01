@@ -37,6 +37,8 @@ final class PluginUpdateParser
      */
     public function extractUpdates(string $body): array
     {
+        $body = self::normalizeWhitespace($body);
+
         [$failedSection, $successSection] = self::splitBySection($body);
 
         $updates = self::extractFromSection($successSection ?? $body, 'success');
@@ -78,6 +80,18 @@ final class PluginUpdateParser
         }
 
         return [null, null];
+    }
+
+    /**
+     * German typography (and some mail clients) glue a number to its preceding word with a
+     * non-breaking space rather than a plain one — invisible when read, but our patterns match
+     * a literal " " so "Version\u{A0}4.2.3" silently fails to match. Collapse every non-breaking
+     * space variant (U+00A0, U+202F) and stray tabs down to a plain space before matching;
+     * newlines are left alone since section-splitting depends on them.
+     */
+    private static function normalizeWhitespace(string $text): string
+    {
+        return \str_replace(["\u{00A0}", "\u{202F}", "\t"], ' ', $text);
     }
 
     /** @param string[] $markers */
