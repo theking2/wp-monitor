@@ -1,0 +1,23 @@
+name: Feature Request
+description: Neue Funktion oder Änderung vorschlagen
+title: "[FR] "
+labels: ["enhancement"]
+assignees:
+  - theking2
+body:
+  - type: dropdown
+    id: art
+    attributes:
+      label: Art
+      options:
+        - kosmetisch
+        - funktional
+    validations:
+      required: true
+  - type: textarea
+    id: beschreibung
+    attributes:
+      label: Beschreibung
+      description: Was soll geändert oder ergänzt werden?
+    validations:
+      required: true

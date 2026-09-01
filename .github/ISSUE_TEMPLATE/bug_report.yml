@@ -1,0 +1,47 @@
+name: Bug Report
+description: Einen Fehler melden
+title: "[BR] "
+labels: ["bug"]
+assignees:
+  - theking2
+body:
+  - type: dropdown
+    id: kategorie
+    attributes:
+      label: Kategorie
+      options:
+        - sicherheit
+        - funktional
+        - kosmetisch
+    validations:
+      required: true
+  - type: dropdown
+    id: prioritaet
+    attributes:
+      label: Priorität
+      options:
+        - low
+        - high
+        - urgent
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: URL
+      description: Wo tritt der Fehler auf?
+    validations:
+      required: false
+  - type: input
+    id: seitentitel
+    attributes:
+      label: Seitentitel
+    validations:
+      required: false
+  - type: textarea
+    id: beschreibung
+    attributes:
+      label: Beschreibung
+      description: Was ist passiert, was wurde erwartet?
+    validations:
+      required: true
