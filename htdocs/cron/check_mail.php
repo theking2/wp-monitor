@@ -56,7 +56,9 @@ try {
 
             $message = $reader->fetchBody($message);
             $subject = (string) $message->getSubject();
-            $body = $message->getTextBody() ?: strip_tags($message->getHTMLBody());
+            // strip_tags() only removes markup — it leaves entities like "&nbsp;" as literal
+            // text, which then fails to match a plain-space pattern in the parser below.
+            $body = $message->getTextBody() ?: html_entity_decode(strip_tags($message->getHTMLBody()), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
             if ($parser->looksLikePluginUpdate($subject, $body)) {
                 $updates = $parser->extractUpdates($body);
