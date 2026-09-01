@@ -76,6 +76,12 @@ final class Site
         return self::find($id);
     }
 
+    public static function delete(int $id): void
+    {
+        $stmt = Database::connection()->prepare('DELETE FROM sites WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+
     /** @return array<string, mixed>|null */
     public static function updateSettings(int $id, ?bool $sanityCheckEnabled, ?bool $wpCronEnabled): ?array
     {

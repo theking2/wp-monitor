@@ -19,6 +19,11 @@ final class Router
         $this->add('POST', $pattern, $handler, $auth);
     }
 
+    public function delete(string $pattern, callable $handler, bool $auth = false): void
+    {
+        $this->add('DELETE', $pattern, $handler, $auth);
+    }
+
     private function add(string $method, string $pattern, callable $handler, bool $auth): void
     {
         $this->routes[] = ['method' => $method, 'pattern' => $pattern, 'handler' => $handler, 'auth' => $auth];

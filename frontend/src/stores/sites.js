@@ -24,5 +24,9 @@ export const useSitesStore = defineStore('sites', {
       this.sites.push(site)
       return site
     },
+    async removeSite(id) {
+      await api.deleteSite(id)
+      this.sites = this.sites.filter((site) => site.id !== id)
+    },
   },
 })

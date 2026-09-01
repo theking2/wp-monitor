@@ -1,14 +1,20 @@
 <script setup>
 import { nextTick, onMounted, ref } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { api } from '../api/client'
+import { useSitesStore } from '../stores/sites'
 import SiteStatusBadge from '../components/SiteStatusBadge.vue'
 import ManualScanPanel from '../components/ManualScanPanel.vue'
 
 const route = useRoute()
+const router = useRouter()
+const sitesStore = useSitesStore()
 const site = ref(null)
 const error = ref('')
 const loading = ref(true)
+
+const deleting = ref(false)
+const deleteError = ref('')
 
 const editingName = ref(false)
 const nameDraft = ref('')
@@ -93,6 +99,23 @@ async function toggleSetting(key) {
   }
 }
 
+async function deleteSite() {
+  if (!window.confirm(`Delete ${site.value.name}? This removes its history and cannot be undone.`)) {
+    return
+  }
+
+  deleteError.value = ''
+  deleting.value = true
+  try {
+    await sitesStore.removeSite(site.value.id)
+    router.push({ name: 'sites' })
+  } catch (e) {
+    deleteError.value = e.message
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -155,9 +178,19 @@ onMounted(load)
           >
             {{ confirming ? 'Confirming…' : 'Confirm changes' }}
           </button>
+          <button
+            type="button"
+            :disabled="deleting"
+            :class="site.status === 'tampered' ? '' : 'ml-auto'"
+            class="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
+            @click="deleteSite"
+          >
+            {{ deleting ? 'Deleting…' : 'Delete site' }}
+          </button>
         </div>
         <p v-if="renameError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ renameError }}</p>
         <p v-if="confirmError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ confirmError }}</p>
+        <p v-if="deleteError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ deleteError }}</p>
       </div>
 
       <a

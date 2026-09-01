@@ -47,10 +47,56 @@ final class SiteController
             return;
         }
 
-        $site = Site::create($name !== '' ? $name : $url, $url);
+        $site = Site::create($name !== '' ? $name : ($this->fetchTitle($url) ?? $url), $url);
         Logger::get()->info('Site added for monitoring', ['site_id' => $site['id'], 'url' => $url]);
 
         Response::json($site, 201);
+    }
+
+    public function destroy(Request $request, array $params): void
+    {
+        $site = Site::find((int) $params['id']);
+        if ($site === null) {
+            Response::error('Site not found', 404);
+            return;
+        }
+
+        Site::delete($site['id']);
+        Logger::get()->info('Site removed from monitoring', ['site_id' => $site['id'], 'url' => $site['url']]);
+
+        Response::json(['deleted' => true]);
+    }
+
+    /**
+     * Best-effort <title> lookup for a freshly-added site with no name given; any failure
+     * (unreachable host, malformed HTML, empty <title>) just falls back to the URL as the name.
+     */
+    private function fetchTitle(string $url): ?string
+    {
+        $ch = \curl_init($url);
+        \curl_setopt_array($ch, [
+            \CURLOPT_RETURNTRANSFER => true,
+            \CURLOPT_FOLLOWLOCATION => true,
+            \CURLOPT_TIMEOUT => (int) (\getenv('SITE_SCANNER_TIMEOUT') ?: 10),
+            \CURLOPT_USERAGENT => 'wp-monitor/1.0 (+site title lookup)',
+            \CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $html = \curl_exec($ch);
+        $error = \curl_error($ch);
+        \curl_close($ch);
+
+        if ($error !== '' || !\is_string($html) || $html === '') {
+            return null;
+        }
+
+        \libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
+        \libxml_clear_errors();
+
+        $title = \trim($dom->getElementsByTagName('title')->item(0)?->textContent ?? '');
+
+        return $title !== '' ? $title : null;
     }
 
     public function rename(Request $request, array $params): void
