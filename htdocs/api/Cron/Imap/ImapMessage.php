@@ -51,6 +51,13 @@ final class ImapMessage
         return $raw === '' ? '' : self::decodeMimeHeader($raw);
     }
 
+    public function getFrom(): string
+    {
+        $raw = $this->headers['from'] ?? '';
+
+        return $raw === '' ? '' : self::decodeMimeHeader($raw);
+    }
+
     public function getTextBody(): string
     {
         $this->ensureBodyParsed();
