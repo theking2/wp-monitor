@@ -15,7 +15,11 @@ final class ReportMailer extends Mailer
         }
 
         $mail = $this->newMailer();
-        $mail->addAddress($to);
+        $to_array = \explode(';', $to);
+        $to_array = \array_map('trim', $to_array);
+        foreach ($to_array as $recipient) {
+            $mail->addAddress($recipient);
+        }
         $mail->Subject = "[wp-monitor] Possible tampering detected: {$site['name']}";
         $mail->isHTML(false);
         $mail->Body = \sprintf(
@@ -44,7 +48,11 @@ final class ReportMailer extends Mailer
         }
 
         $mail = $this->newMailer();
-        $mail->addAddress($to);
+        $to_array = \explode(';', $to);
+        $to_array = \array_map('trim', $to_array);
+        foreach ($to_array as $recipient) {
+            $mail->addAddress($recipient);
+        }
         $mail->Subject = "[wp-monitor] Content updated: {$site['name']}";
         $mail->isHTML(false);
         $mail->Body = \sprintf(
@@ -73,7 +81,11 @@ final class ReportMailer extends Mailer
         }
 
         $mail = $this->newMailer();
-        $mail->addAddress($to);
+        $to_array = \explode(';', $to);
+        $to_array = \array_map('trim', $to_array);
+        foreach ($to_array as $recipient) {
+            $mail->addAddress($recipient);
+        }
         $mail->Subject = "[wp-monitor] Site unreachable: {$site['name']}";
         $mail->isHTML(false);
         $mail->Body = \sprintf(
@@ -101,7 +113,11 @@ final class ReportMailer extends Mailer
         }
 
         $mail = $this->newMailer();
-        $mail->addAddress($to);
+        $to_array = \explode(';', $to);
+        $to_array = \array_map('trim', $to_array);
+        foreach ($to_array as $recipient) {
+            $mail->addAddress($recipient);
+        }
         $mail->Subject = "[wp-monitor] Site reachable again: {$site['name']}";
         $mail->isHTML(false);
         $mail->Body = \sprintf("Site: %s (%s)\nIs reachable again.\n", $site['name'], $site['url']);
