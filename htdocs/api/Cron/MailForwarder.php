@@ -13,12 +13,16 @@ final class MailForwarder extends Mailer
         if ($to === '') {
             return;
         }
+        $to_array = \explode(';', $to);
+
 
         $subject = (string) $message->getSubject();
         $from = $message->getFrom();
 
         $mail = $this->newMailer();
-        $mail->addAddress($to);
+        foreach ($to_array as $recipient) {
+            $mail->addAddress(\trim($recipient));
+        }
         $mail->Subject = '[Fwd] ' . $subject;
 
         $html = $message->getHTMLBody();
