@@ -17,6 +17,7 @@ final class MailForwarder extends Mailer
 
 
         $subject = (string) $message->getSubject();
+        $from = $message->getFrom();
 
         $mail = $this->newMailer();
         foreach ($to_array as $recipient) {
@@ -27,11 +28,11 @@ final class MailForwarder extends Mailer
         $html = $message->getHTMLBody();
         if ($html !== '') {
             $mail->isHTML(true);
-            $mail->Body = $html;
-            $mail->AltBody = $message->getTextBody() ?: \strip_tags($html);
+            $mail->Body = self::withOriginalSenderHtml($from, $html);
+            $mail->AltBody = self::withOriginalSenderText($from, $message->getTextBody() ?: \strip_tags($html));
         } else {
             $mail->isHTML(false);
-            $mail->Body = $message->getTextBody() ?: '(no body)';
+            $mail->Body = self::withOriginalSenderText($from, $message->getTextBody() ?: '(no body)');
         }
 
         Logger::get()->info('Forwarding email', ['to' => $to, 'subject' => $subject]);
@@ -41,5 +42,25 @@ final class MailForwarder extends Mailer
             'subject' => $subject,
             'smtp_response' => \trim($mail->getSMTPInstance()->getLastReply()),
         ]);
+    }
+
+    private static function withOriginalSenderText(string $from, string $body): string
+    {
+        if ($from === '') {
+            return $body;
+        }
+
+        return "Original sender: {$from}\n\n{$body}";
+    }
+
+    private static function withOriginalSenderHtml(string $from, string $html): string
+    {
+        if ($from === '') {
+            return $html;
+        }
+
+        $notice = '<p><strong>Original sender:</strong> ' . \htmlspecialchars($from, \ENT_QUOTES) . '</p>';
+
+        return $notice . $html;
     }
 }
