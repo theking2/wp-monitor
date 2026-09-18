@@ -13,13 +13,13 @@ final class MailForwarder extends Mailer
         if ($to === '') {
             return;
         }
-        $to_array = \explode(';', $to);
-
-
         $subject = (string) $message->getSubject();
         $from = $message->getFrom();
-
+        
         $mail = $this->newMailer();
+ 
+        $to_array = \explode(';', $to);
+        $to_array = \array_map('trim', $to_array);
         foreach ($to_array as $recipient) {
             $mail->addAddress(\trim($recipient));
         }
