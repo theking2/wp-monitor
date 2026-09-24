@@ -42,5 +42,6 @@ export const api = {
   renameSite: (id, name) => request(`/sites/${id}/rename`, { method: 'POST', body: { name } }),
   confirmSiteChanges: (id) => request(`/sites/${id}/confirm`, { method: 'POST' }),
   updateSiteNotes: (id, notes) => request(`/sites/${id}/notes`, { method: 'POST', body: { notes } }),
+  updateSiteHosterUrl: (id, hosterUrl) => request(`/sites/${id}/hoster-url`, { method: 'POST', body: { hoster_url: hosterUrl } }),
   updateSiteSettings: (id, settings) => request(`/sites/${id}/settings`, { method: 'POST', body: settings }),
 }

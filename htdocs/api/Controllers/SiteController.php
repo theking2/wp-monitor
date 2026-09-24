@@ -137,6 +137,33 @@ final class SiteController
         Response::json(Site::updateNotes($site['id'], $notes));
     }
 
+    /**
+     * The hoster's control panel URL only — credentials for it live in the team's password
+     * manager and deliberately never touch this app. An empty value clears the field.
+     */
+    public function updateHosterUrl(Request $request, array $params): void
+    {
+        $site = Site::find((int) $params['id']);
+        if ($site === null) {
+            Response::error('Site not found', 404);
+            return;
+        }
+
+        $hosterUrl = \trim((string) ($request->body['hoster_url'] ?? ''));
+
+        if ($hosterUrl !== '' && \filter_var($hosterUrl, \FILTER_VALIDATE_URL) === false) {
+            Response::error('A valid url is required', 422);
+            return;
+        }
+
+        Logger::get()->info('Site hoster url updated', [
+            'site_id' => $site['id'],
+            'hoster_url' => $hosterUrl,
+        ]);
+
+        Response::json(Site::updateHosterUrl($site['id'], $hosterUrl));
+    }
+
     public function updateSettings(Request $request, array $params): void
     {
         $site = Site::find((int) $params['id']);

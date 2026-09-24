@@ -87,6 +87,17 @@ final class Site
         return self::find($id);
     }
 
+    /** @return array<string, mixed>|null */
+    public static function updateHosterUrl(int $id, string $hosterUrl): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE sites SET hoster_url = :hoster_url, updated_at = :now WHERE id = :id'
+        );
+        $stmt->execute(['hoster_url' => $hosterUrl, 'now' => \date('c'), 'id' => $id]);
+
+        return self::find($id);
+    }
+
     public static function delete(int $id): void
     {
         $stmt = Database::connection()->prepare('DELETE FROM sites WHERE id = :id');
