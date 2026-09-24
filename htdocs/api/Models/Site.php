@@ -76,6 +76,17 @@ final class Site
         return self::find($id);
     }
 
+    /** @return array<string, mixed>|null */
+    public static function updateNotes(int $id, string $notes): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE sites SET notes = :notes, updated_at = :now WHERE id = :id'
+        );
+        $stmt->execute(['notes' => $notes, 'now' => \date('c'), 'id' => $id]);
+
+        return self::find($id);
+    }
+
     public static function delete(int $id): void
     {
         $stmt = Database::connection()->prepare('DELETE FROM sites WHERE id = :id');
