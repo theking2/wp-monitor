@@ -5,6 +5,7 @@ import { api } from '../api/client'
 import { useSitesStore } from '../stores/sites'
 import SiteStatusBadge from '../components/SiteStatusBadge.vue'
 import ManualScanPanel from '../components/ManualScanPanel.vue'
+import CollapsibleSection from '../components/CollapsibleSection.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -273,8 +274,7 @@ onMounted(load)
 
       <ManualScanPanel :site-id="site.id" @scanned="load" />
 
-      <div>
-        <h3 class="font-heading mb-2 text-lg">Alert history</h3>
+      <CollapsibleSection title="Alert history" :count="site.alerts.length" :open="site.alerts.length > 0">
         <p v-if="site.alerts.length === 0" class="text-sm text-slate-400 dark:text-slate-500">
           No alerts recorded.
         </p>
@@ -291,10 +291,9 @@ onMounted(load)
             <pre class="mt-2 whitespace-pre-wrap text-red-700 dark:text-red-400">{{ alert.diff_summary }}</pre>
           </li>
         </ul>
-      </div>
+      </CollapsibleSection>
 
-      <div>
-        <h3 class="font-heading mb-2 text-lg">Outage history</h3>
+      <CollapsibleSection title="Outage history" :count="site.outages.length" :open="site.outages.length > 0">
         <p v-if="site.outages.length === 0" class="text-sm text-slate-400 dark:text-slate-500">
           No outages recorded.
         </p>
@@ -311,10 +310,9 @@ onMounted(load)
             <p class="mt-2 text-violet-700 dark:text-violet-400">{{ outage.error_message }}</p>
           </li>
         </ul>
-      </div>
+      </CollapsibleSection>
 
-      <div>
-        <h3 class="font-heading mb-2 text-lg">Snapshot history</h3>
+      <CollapsibleSection title="Snapshot history" :count="site.snapshots.length">
         <table class="w-full divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
           <thead class="bg-slate-50 dark:bg-slate-900">
             <tr>
@@ -335,7 +333,7 @@ onMounted(load)
             </tr>
           </tbody>
         </table>
-      </div>
+      </CollapsibleSection>
     </template>
   </div>
 </template>
