@@ -122,6 +122,21 @@ final class SiteController
         Response::json(Site::updateName($site['id'], $name));
     }
 
+    public function updateNotes(Request $request, array $params): void
+    {
+        $site = Site::find((int) $params['id']);
+        if ($site === null) {
+            Response::error('Site not found', 404);
+            return;
+        }
+
+        $notes = \trim((string) ($request->body['notes'] ?? ''));
+
+        Logger::get()->info('Site notes updated', ['site_id' => $site['id']]);
+
+        Response::json(Site::updateNotes($site['id'], $notes));
+    }
+
     public function updateSettings(Request $request, array $params): void
     {
         $site = Site::find((int) $params['id']);

@@ -28,11 +28,17 @@ const confirmError = ref('')
 const savingSettings = ref(false)
 const settingsError = ref('')
 
+const notesDraft = ref('')
+const savingNotes = ref(false)
+const notesError = ref('')
+const notesSaved = ref(false)
+
 async function load() {
   loading.value = true
   error.value = ''
   try {
     site.value = await api.getSite(route.params.id)
+    notesDraft.value = site.value.notes ?? ''
   } catch (e) {
     error.value = e.message
   } finally {
@@ -83,6 +89,22 @@ async function confirmChanges() {
     confirmError.value = e.message
   } finally {
     confirming.value = false
+  }
+}
+
+async function saveNotes() {
+  notesError.value = ''
+  notesSaved.value = false
+  savingNotes.value = true
+  try {
+    const updated = await api.updateSiteNotes(site.value.id, notesDraft.value)
+    site.value.notes = updated.notes
+    notesDraft.value = updated.notes
+    notesSaved.value = true
+  } catch (e) {
+    notesError.value = e.message
+  } finally {
+    savingNotes.value = false
   }
 }
 
@@ -225,6 +247,29 @@ onMounted(load)
         </label>
       </div>
       <p v-if="settingsError" class="text-sm text-red-600 dark:text-red-400">{{ settingsError }}</p>
+
+      <div>
+        <h3 class="font-heading mb-2 text-lg">Notes</h3>
+        <textarea
+          v-model="notesDraft"
+          rows="4"
+          placeholder="Anything worth remembering about this site…"
+          class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          @input="notesSaved = false"
+        ></textarea>
+        <div class="mt-2 flex items-center gap-3">
+          <button
+            type="button"
+            :disabled="savingNotes || notesDraft === (site.notes ?? '')"
+            class="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+            @click="saveNotes"
+          >
+            {{ savingNotes ? 'Saving…' : 'Save notes' }}
+          </button>
+          <span v-if="notesSaved" class="text-sm text-slate-500 dark:text-slate-400">Saved</span>
+          <span v-if="notesError" class="text-sm text-red-600 dark:text-red-400">{{ notesError }}</span>
+        </div>
+      </div>
 
       <ManualScanPanel :site-id="site.id" @scanned="load" />
 
