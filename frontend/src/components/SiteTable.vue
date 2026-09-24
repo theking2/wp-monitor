@@ -36,7 +36,7 @@ function rowClass(site) {
     <thead class="bg-slate-50 dark:bg-slate-900">
       <tr>
         <th class="px-4 py-2 text-left text-sm font-medium text-slate-500 dark:text-slate-400">Name</th>
-        <th class="px-4 py-2 text-left text-sm font-medium text-slate-500 dark:text-slate-400">URL</th>
+        <th class="px-4 py-2 text-left text-sm font-medium text-slate-500 dark:text-slate-400">Admin</th>
         <th class="px-4 py-2 text-left text-sm font-medium text-slate-500 dark:text-slate-400">Status</th>
         <th class="px-4 py-2 text-left text-sm font-medium text-slate-500 dark:text-slate-400">Last checked</th>
       </tr>
@@ -51,7 +51,7 @@ function rowClass(site) {
             {{ site.name }}
           </RouterLink>
         </td>
-        <td class="px-4 py-3 text-slate-500 dark:text-slate-400"><a :href="`${site.url}/wp-admin/`" target="_blank" class="text-blue-500 hover:underline dark:text-blue-400">Visit</a></td>
+        <td class="px-4 py-3 text-slate-500 dark:text-slate-400"><a :href="`${site.url}/wp-admin/`" target="_blank" class="text-blue-500 hover:underline dark:text-blue-400">Admin</a></td>
         <td class="px-4 py-3"><SiteStatusBadge :status="site.status" /></td>
         <td class="px-4 py-3 text-slate-500 dark:text-slate-400">{{ formatRelativeUpperBound(site.last_checked_at) }}</td>
       </tr>
