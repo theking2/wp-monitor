@@ -29,6 +29,10 @@ const confirmError = ref('')
 const savingSettings = ref(false)
 const settingsError = ref('')
 
+const hosterUrlDraft = ref('')
+const savingHosterUrl = ref(false)
+const hosterUrlError = ref('')
+
 const notesDraft = ref('')
 const savingNotes = ref(false)
 const notesError = ref('')
@@ -40,6 +44,7 @@ async function load() {
   try {
     site.value = await api.getSite(route.params.id)
     notesDraft.value = site.value.notes ?? ''
+    hosterUrlDraft.value = site.value.hoster_url ?? ''
   } catch (e) {
     error.value = e.message
   } finally {
@@ -90,6 +95,20 @@ async function confirmChanges() {
     confirmError.value = e.message
   } finally {
     confirming.value = false
+  }
+}
+
+async function saveHosterUrl() {
+  hosterUrlError.value = ''
+  savingHosterUrl.value = true
+  try {
+    const updated = await api.updateSiteHosterUrl(site.value.id, hosterUrlDraft.value.trim())
+    site.value.hoster_url = updated.hoster_url
+    hosterUrlDraft.value = updated.hoster_url
+  } catch (e) {
+    hosterUrlError.value = e.message
+  } finally {
+    savingHosterUrl.value = false
   }
 }
 
@@ -224,6 +243,41 @@ onMounted(load)
       >
         {{ site.url }}
       </a>
+
+      <div>
+        <h3 class="font-heading mb-2 text-lg">Hoster</h3>
+        <div class="flex flex-wrap items-center gap-2">
+          <input
+            v-model="hosterUrlDraft"
+            type="url"
+            inputmode="url"
+            placeholder="https://control-panel.example.com"
+            class="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            @keyup.enter="saveHosterUrl"
+          >
+          <button
+            type="button"
+            :disabled="savingHosterUrl || hosterUrlDraft.trim() === (site.hoster_url ?? '')"
+            class="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+            @click="saveHosterUrl"
+          >
+            {{ savingHosterUrl ? 'Saving…' : 'Save' }}
+          </button>
+          <a
+            v-if="site.hoster_url"
+            :href="site.hoster_url"
+            target="_blank"
+            rel="noreferrer"
+            class="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Open
+          </a>
+        </div>
+        <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
+          Control panel URL only — sign in with the credentials from the password manager.
+        </p>
+        <p v-if="hosterUrlError" class="mt-1 text-sm text-red-600 dark:text-red-400">{{ hosterUrlError }}</p>
+      </div>
 
       <div class="flex flex-wrap gap-6 text-sm">
         <label class="flex items-center gap-2">

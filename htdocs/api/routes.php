@@ -15,6 +15,7 @@ $router->delete('/api/sites/{id}', [new SiteController(), 'destroy'], true);
 $router->post('/api/sites/{id}/rename', [new SiteController(), 'rename'], true);
 $router->post('/api/sites/{id}/confirm', [new SiteController(), 'confirmChanges'], true);
 $router->post('/api/sites/{id}/notes', [new SiteController(), 'updateNotes'], true);
+$router->post('/api/sites/{id}/hoster-url', [new SiteController(), 'updateHosterUrl'], true);
 $router->post('/api/sites/{id}/settings', [new SiteController(), 'updateSettings'], true);
 
 $router->post('/api/sites/{id}/scan', [new ScanController(), 'scan'], true);

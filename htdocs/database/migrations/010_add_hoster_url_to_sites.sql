@@ -1,0 +1,1 @@
+ALTER TABLE sites ADD COLUMN hoster_url TEXT NOT NULL DEFAULT '';
