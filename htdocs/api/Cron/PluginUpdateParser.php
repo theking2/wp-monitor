@@ -12,7 +12,10 @@ final class PluginUpdateParser
 {
     public function looksLikePluginUpdate(string $subject, string $body): bool
     {
-        $haystack = \strtolower($subject . ' ' . $body);
+        // Same non-breaking-space normalization as extractUpdates(): German core-update mails
+        // glue the version to "WordPress" with U+00A0, which the plain `\s` below (no /u flag)
+        // doesn't match — so without this the mail failed the gate and got forwarded instead.
+        $haystack = \strtolower(self::normalizeWhitespace($subject . ' ' . $body));
 
         // "aktualisi" stems both "aktualisiert" (updated) and "Aktualisierung" (update, noun) —
         // WordPress auto-update notifications are frequently sent in the site's own language.
