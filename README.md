@@ -50,9 +50,7 @@ keeps an eye on a mailbox for WordPress plugin/version update notifications, for
 wp-monitor
 ├── .wp-mon.env                    # docker + app configuration (see below), not committed
 ├── .wp-mon.env_sample
-├── .deploy.env                    # frontend deploy credentials (see below), not committed
-├── .deploy.env.sample
-├── deploy-frontend.sh              # builds + uploads the SPA (see "Deploying the frontend")
+├── package.json                  # build + deploy npm tasks (see "Deploying")
 ├── compose.yaml                  # webserver only, PHP + sqlite
 ├── Dockerfile
 ├── apache-vhost.conf              # AllowOverride for htdocs/.htaccess (front-controller rewrite)
@@ -286,44 +284,69 @@ npm run dev        # local dev server against the API
 npm run build      # outputs to ../htdocs/assets/app
 ```
 
-## Deploying the frontend
+## Deploying
 
-`deploy-frontend.sh` builds the SPA and uploads `htdocs/assets/app` to the server via `lftp`
-(`ftp`, `ftps`, or `sftp`). One-time setup: copy `.deploy.env.sample` to `.deploy.env` and fill in
-your host/credentials — same `.wp-mon.env`/`.wp-mon.env_sample` pattern as the app config, and `.deploy.env` is
-gitignored for the same reason.
+Deploys run as npm tasks from the repo root (root [package.json](package.json)). They use `rsync`
+over SSH with key auth. There are no credentials in the repo.
 
-```
-./deploy-frontend.sh          # prompts for confirmation before uploading
-./deploy-frontend.sh --yes    # skips the prompt, for scripting/CI
-```
+### One-time setup
 
-It uses `mirror --reverse --delete`, so anything on the remote side no longer present locally gets
-removed — necessary because Vite hashes bundle filenames on every build, otherwise old JS/CSS
-files pile up forever. This is exactly why `DEPLOY_REMOTE_PATH` must point specifically at the
-built-app folder (e.g. `/httpdocs/assets/app`) and never at the whole webroot. Leave
-`DEPLOY_PASSWORD` blank with `DEPLOY_PROTOCOL=sftp` to use SSH key/agent auth instead of a password.
-
-## Deploying the backend
-
-`deploy-backend.sh` runs `composer install --no-dev` and uploads the PHP API to the server via
-`lftp`, using the same `.deploy.env` as the frontend script plus `DEPLOY_BACKEND_REMOTE_PATH`
-(the remote webroot, e.g. `/httpdocs`).
+The tasks connect to the SSH host alias `plc.sbw.media`. Define it in your `~/.ssh/config`:
 
 ```
-./deploy-backend.sh          # prompts for confirmation before uploading
-./deploy-backend.sh --yes    # skips the prompt, for scripting/CI
+Host plc.sbw.media
+    HostName palladius.sui-inter.net
+    Port 2121
+    User <ssh user>
+    IdentityFile <your key for this account>
+    IdentitiesOnly yes
 ```
 
-It mirrors (with deletion) only its own `api/`, `cron/`, `vendor/`, and `database/migrations/`
-subfolders, and `put`s `composer.json`, `composer.lock`, `index.php`, and `.htaccess`
-individually — it never touches `assets/` (owned by `deploy-frontend.sh`) or
-`database/*.sqlite` (the live database), even though `DEPLOY_BACKEND_REMOTE_PATH` points at the
-whole webroot. Migrations in `database/migrations/` are applied automatically on the next
-request (see `App\Core\Migrator`), so there's no separate migration step.
+**The server bans IPs after only a few failed logins.** `IdentitiesOnly yes` matters: without it,
+ssh offers every key in your agent, and each rejected key counts as a failed login. Check the alias
+once by hand with `ssh plc.sbw.media true` before deploying. The tasks run ssh with
+`BatchMode=yes`, so a key problem fails after one attempt and doesn't fall back to passwords.
 
-There is currently no CI/CD — deploying either the frontend or backend is a manual step you run
-locally.
+To use a different alias or target directory without editing `package.json`:
+
+```
+npm config set wp-monitor:host <alias>
+npm config set wp-monitor:root /domains/wp-mon.sbw.media
+```
+
+### Tasks
+
+```
+npm run deploy:check      # build everything, then show what would change on the server (rsync --dry-run)
+npm run deploy:backend    # composer install --no-dev + upload the PHP backend
+npm run deploy:frontend   # vite build + upload the SPA
+npm run deploy            # backend, then frontend
+```
+
+The `sync:backend` and `sync:frontend` tasks run only the upload step, without building. Arguments
+after `--` go to rsync, e.g. `npm run sync:backend -- --dry-run`. There is no confirmation prompt;
+run `deploy:check` first if you're unsure.
+
+### What gets touched
+
+The remote root `/domains/wp-mon.sbw.media` is the web root, the same directory `htdocs/` maps to.
+
+- **Frontend:** `htdocs/assets/app/` is mirrored to `assets/app/` **with deletion**. Vite hashes
+  bundle filenames on every build, so old JS/CSS files would otherwise pile up forever.
+- **Backend:** `api/`, `cron/`, `vendor/` and `database/migrations/` are mirrored **with deletion**.
+  `composer.json`, `composer.lock`, `index.php` and `.htaccess` are overwritten.
+- **Never touched:** anything else in the web root, including the live `wp-monitor.sqlite`, the
+  rest of `assets/` (e.g. `assets/fonts/`, which no task uploads) and the server-side config.
+
+Deletion only happens inside the mirrored directories (`rsync --relative --delete`), never in the
+web root itself. Migrations in `database/migrations/` are applied automatically on the next request
+(see `App\Core\Migrator`), so there's no separate migration step.
+
+`build:backend` runs `composer install --no-dev` in your working copy, which removes dev
+dependencies from your local `htdocs/vendor/`. Run `composer install` in `htdocs/` again afterwards
+for local development.
+
+There is currently no CI/CD. Deploys are a manual step you run locally.
 
 ## Fonts
 
