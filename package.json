@@ -1,0 +1,23 @@
+{
+  "name": "wp-monitor",
+  "private": true,
+  "description": "Build and deploy tasks. Deploys go over rsync+ssh to the host alias in config.host (an ~/.ssh/config entry).",
+  "config": {
+    "host": "plc.sbw.media",
+    "root": "/domains/wp-mon.sbw.media"
+  },
+  "scripts": {
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "composer --working-dir=htdocs install --no-dev --optimize-autoloader --no-interaction",
+    "build": "npm run build:backend && npm run build:frontend",
+
+    "sync:frontend": "rsync -rlptz --delete --itemize-changes -e 'ssh -o BatchMode=yes' htdocs/assets/app/ \"$npm_package_config_host:$npm_package_config_root/assets/app/\"",
+    "sync:backend": "rsync -rlptz --delete --relative --itemize-changes -e 'ssh -o BatchMode=yes' htdocs/./api htdocs/./cron htdocs/./vendor htdocs/./database/migrations htdocs/./composer.json htdocs/./composer.lock htdocs/./index.php htdocs/./.htaccess \"$npm_package_config_host:$npm_package_config_root/\"",
+
+    "deploy:frontend": "npm run build:frontend && npm run sync:frontend",
+    "deploy:backend": "npm run build:backend && npm run sync:backend",
+    "deploy": "npm run deploy:backend && npm run deploy:frontend",
+
+    "deploy:check": "npm run build && npm run sync:backend -- --dry-run && npm run sync:frontend -- --dry-run"
+  }
+}
